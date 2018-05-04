@@ -546,6 +546,7 @@ public:
   class distance_dir;
   class cartesian;
   class orientation;
+  class fit_plane;
 
 protected:
 
