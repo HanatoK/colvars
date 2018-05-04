@@ -21,6 +21,7 @@ COLVARSLIB = \
 	$(DSTDIR)/colvarcomp_combination.o \
 	$(DSTDIR)/colvarcomp_neuralnetwork.o \
 	$(DSTDIR)/colvar_neuralnetworkcompute.o \
+	$(DSTDIR)/colvarcomp_fit_plane.o \
 	$(DSTDIR)/colvardeps.o \
 	$(DSTDIR)/colvargrid.o \
 	$(DSTDIR)/colvarmodule.o \

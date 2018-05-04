@@ -910,6 +910,7 @@ int colvar::init_components(std::string const &conf)
   error_code |= init_components_type<neuralNetwork>(conf, "neural network CV for other CVs", "NeuralNetwork");
 
   error_code |= init_components_type<map_total>(conf, "total value of atomic map", "mapTotal");
+  error_code |= init_components_type<fit_plane>(conf, "fit a plane through multiple groups", "fit_plane");
 #if (__cplusplus >= 201103L)
   // iterate over all available CVC in the map
   for (auto it = global_cvc_map.begin(); it != global_cvc_map.end(); ++it) {
@@ -922,6 +923,7 @@ int colvar::init_components(std::string const &conf)
     }
   }
 #endif
+
   if (!cvcs.size() || (error_code != COLVARS_OK)) {
     cvm::error("Error: no valid components were provided "
                "for this collective variable.\n",
