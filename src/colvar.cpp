@@ -940,6 +940,7 @@ void colvar::define_component_types()
   if (proxy->check_volmaps_available() == COLVARS_OK) {
     add_component_type<map_total>("total value of atomic map", "mapTotal");
   }
+  add_component_type<fit_plane>("fit a plane through multiple groups", "fit_plane");
 }
 
 

@@ -647,6 +647,7 @@ public:
   class distance_dir;
   class cartesian;
   class orientation;
+  class fit_plane;
 
   // components that do not handle any atoms directly
   class map_total;

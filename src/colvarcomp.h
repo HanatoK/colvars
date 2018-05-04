@@ -1588,5 +1588,38 @@ protected:
 };
 
 
+class colvar::fit_plane : public colvar::cvc
+{
+public:
+    fit_plane(std::string const &conf);
+    fit_plane();
+    virtual ~fit_plane() {}
+    virtual void calc_value();
+    virtual void calc_gradients();
+    virtual void apply_force(colvarvalue const &force);
+protected:
+    /// Multiple atom groups
+    std::vector<cvm::atom_group*> groups;
+    /// Use absolute positions, ignoring PBCs when present
+//     bool b_no_PBC;
+private:
+    size_t n; // Number of groups
+    double sum_xi;
+    double sum_yi;
+    double sum_zi;
+    double sum_xi_square;
+    double sum_yi_square;
+    double sum_xi_yi;
+    double sum_xi_zi;
+    double sum_yi_zi;
+    double g;
+    double k0;
+    double k1;
+    double k2;
+    double norm;
+    std::vector<std::vector<double>> dk0norm;
+    std::vector<std::vector<double>> dk1norm;
+    std::vector<std::vector<double>> dk2norm;
+};
 
 #endif
