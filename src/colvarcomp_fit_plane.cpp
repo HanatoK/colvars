@@ -89,9 +89,9 @@ void colvar::fit_plane::calc_gradients() {
     const double f2 = sum_xi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_yi_zi * (sum_xi * sum_xi - n * sum_xi_square) + sum_zi * (sum_xi_square * sum_yi - sum_xi * sum_xi_yi);
     for (size_t i = 0; i < n; ++i) {
         cvm::atom_pos group_pos = groups[i]->center_of_mass();
-        const double xi = group_pos.x;
-        const double yi = group_pos.y;
-        const double zi = group_pos.z;
+        const double &xi = group_pos.x;
+        const double &yi = group_pos.y;
+        const double &zi = group_pos.z;
         const double dg_dxi = 2 * xi * (n * sum_yi_square - sum_yi * sum_yi) - yi * (n * sum_xi_yi - sum_xi * sum_yi) - sum_xi_yi * (n * yi - sum_yi) + sum_xi_yi * sum_yi - sum_xi * sum_yi_square + yi * sum_xi * sum_yi - sum_xi * sum_yi_square;
         const double dg_dyi = 2 * n * yi * sum_xi_square - 2 * sum_xi_square * sum_yi - n * xi * sum_xi_yi + xi * sum_xi * sum_yi - n * xi * sum_xi_yi + sum_xi * sum_xi_yi + xi * sum_xi * sum_yi + sum_xi * sum_xi_yi - 2 * yi * sum_xi * sum_xi;
         const double df1_dxi = zi * (sum_yi * sum_yi - n * sum_yi_square) + sum_yi_zi * (n * yi - sum_yi) + sum_zi * (sum_yi_square - yi * sum_yi);
