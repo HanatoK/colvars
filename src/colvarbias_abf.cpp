@@ -56,6 +56,7 @@ int colvarbias_abf::init(std::string const &conf)
     cvm::log("Jacobian (geometric) forces will be included in reported free energy gradients.\n");
   }
 
+  get_keyval(conf, "applyBiasAfter", apply_bias_nsteps, 0);
   get_keyval(conf, "fullSamples", full_samples, 200);
   if ( full_samples <= 1 ) full_samples = 1;
   min_samples = full_samples / 2;
@@ -407,25 +408,27 @@ int colvarbias_abf::update()
 //       // Average of force according to conditional distribution of fictitious variable
 //       // need freshly integrated PMF, gradient TODO
 //     } else
-    if ( fact != 0.0 ) {
-      if ( (num_variables() == 1) && colvars[0]->periodic_boundaries() ) {
-        // Enforce a zero-mean bias on periodic, 1D coordinates
-        // in other words: boundary condition is that the biasing potential is periodic
-        // This is enforced naturally if using integrated PMF
-        colvar_forces[0].real_value = fact * (grad[0] - gradients->average ());
-      } else {
-        for (size_t i = 0; i < num_variables(); i++) {
-          // subtracting the mean force (opposite of the FE gradient) means adding the gradient
-          colvar_forces[i].real_value = fact * grad[i];
+    if (cvm::step_absolute() >= apply_bias_nsteps) {
+        if ( fact != 0.0 ) {
+        if ( (num_variables() == 1) && colvars[0]->periodic_boundaries() ) {
+            // Enforce a zero-mean bias on periodic, 1D coordinates
+            // in other words: boundary condition is that the biasing potential is periodic
+            // This is enforced naturally if using integrated PMF
+            colvar_forces[0].real_value = fact * (grad[0] - gradients->average ());
+        } else {
+            for (size_t i = 0; i < num_variables(); i++) {
+            // subtracting the mean force (opposite of the FE gradient) means adding the gradient
+            colvar_forces[i].real_value = fact * grad[i];
+            }
         }
-      }
-      if (cap_force) {
-        for (size_t i = 0; i < num_variables(); i++) {
-          if ( colvar_forces[i].real_value * colvar_forces[i].real_value > max_force[i] * max_force[i] ) {
-            colvar_forces[i].real_value = (colvar_forces[i].real_value > 0 ? max_force[i] : -1.0 * max_force[i]);
-          }
+        if (cap_force) {
+            for (size_t i = 0; i < num_variables(); i++) {
+            if ( colvar_forces[i].real_value * colvar_forces[i].real_value > max_force[i] * max_force[i] ) {
+                colvar_forces[i].real_value = (colvar_forces[i].real_value > 0 ? max_force[i] : -1.0 * max_force[i]);
+            }
+            }
         }
-      }
+        }
     }
   }
 

@@ -39,6 +39,7 @@ private:
 
   size_t  full_samples;
   size_t  min_samples;
+  long apply_bias_nsteps;
   /// frequency for updating output files
   int     output_freq;
   /// Write combined files with a history of all output data?
