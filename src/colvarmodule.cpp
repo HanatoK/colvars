@@ -56,6 +56,7 @@ colvarmodule::colvarmodule(colvarproxy *proxy_in)
   scripting_after_biases = false;
 
   b_analysis = false;
+  b_no_add_energy = false;
 
   colvarmodule::debug_gradients_step_size = 1.0e-07;
 
@@ -251,6 +252,8 @@ int colvarmodule::parse_global_params(std::string const &conf)
   }
 
   parse->get_keyval(conf, "analysis", b_analysis, b_analysis);
+
+  parse->get_keyval(conf, "noAddEnergy", b_no_add_energy, b_no_add_energy);
 
   parse->get_keyval(conf, "debugGradientsStepSize", debug_gradients_step_size,
                     debug_gradients_step_size,
@@ -910,9 +913,11 @@ int colvarmodule::update_colvar_forces()
     }
   }
   cvm::decrease_depth();
-  if (cvm::debug())
-    cvm::log("Adding total colvar energy: " + cvm::to_str(total_colvar_energy) + "\n");
-  proxy->add_energy(total_colvar_energy);
+  if (!b_no_add_energy) {
+    if (cvm::debug())
+      cvm::log("Adding total colvar energy: " + cvm::to_str(total_colvar_energy) + "\n");
+    proxy->add_energy(total_colvar_energy);
+  }
 
   // make collective variables communicate their forces to their
   // coupled degrees of freedom (i.e. atoms)
@@ -1874,6 +1879,7 @@ size_t    colvarmodule::cv_traj_freq = 0;
 bool      colvarmodule::b_analysis = false;
 bool      colvarmodule::use_scripted_forces = false;
 bool      colvarmodule::scripting_after_biases = true;
+bool      colvarmodule::b_no_add_energy = false;
 
 // i/o constants
 size_t const colvarmodule::it_width = 12;

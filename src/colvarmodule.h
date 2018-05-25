@@ -544,6 +544,8 @@ public:
   /// Pseudo-random number with Gaussian distribution
   static real rand_gaussian(void);
 
+  static bool b_no_add_energy;
+
 protected:
 
   /// Configuration file

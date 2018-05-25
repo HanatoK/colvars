@@ -309,6 +309,7 @@ colvarbias_abf::~colvarbias_abf()
 
 int colvarbias_abf::update()
 {
+if (cvm::step_absolute() >= apply_bias_nsteps) {
   if (cvm::debug()) cvm::log("Updating ABF bias " + this->name);
 
   size_t i;
@@ -408,7 +409,6 @@ int colvarbias_abf::update()
 //       // Average of force according to conditional distribution of fictitious variable
 //       // need freshly integrated PMF, gradient TODO
 //     } else
-    if (cvm::step_absolute() >= apply_bias_nsteps) {
         if ( fact != 0.0 ) {
         if ( (num_variables() == 1) && colvars[0]->periodic_boundaries() ) {
             // Enforce a zero-mean bias on periodic, 1D coordinates
@@ -429,7 +429,6 @@ int colvarbias_abf::update()
             }
         }
         }
-    }
   }
 
   // update the output prefix; TODO: move later to setup_output() function
@@ -478,7 +477,7 @@ int colvarbias_abf::update()
     eabf_UI.update_output_filename(output_prefix);
     eabf_UI.update(cvm::step_absolute(), x, y);
   }
-
+}
   return COLVARS_OK;
 }
 
