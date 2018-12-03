@@ -1844,7 +1844,7 @@ void colvarbias_meta::write_pmf()
       // Calculate log(sum(exp(V(s,t)/kbT)))
       const cvm::real max_exponent = time_independent_grid->maximum_value();
       time_independent_grid->add_constant(-1.0 * max_exponent);
-      time_independent_grid->apply(std::exp);
+      time_independent_grid->apply([](cvm::real x){return std::exp(x);});
       cvm::real logsumexp = max_exponent + std::log(time_independent_grid->sum());
       // Calculate Δs
       cvm::real delta_s = 1.0;
@@ -1856,8 +1856,8 @@ void colvarbias_meta::write_pmf()
       // F(s) = -V(s,t) + kbt * c(t)
       pmf->add_constant(-1.0 * kbt * c_t);
     }
-    cvm::real const max = pmf->maximum_value();
-    pmf->add_constant(-1.0 * max);
+//     cvm::real const max = pmf->maximum_value();
+//     pmf->add_constant(-1.0 * max);
     pmf->multiply_constant(-1.0);
     if (well_tempered) {
       cvm::real const well_temper_scale = (bias_temperature + cvm::temperature()) / bias_temperature;
