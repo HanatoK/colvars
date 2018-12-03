@@ -1815,11 +1815,14 @@ void colvarbias_meta::write_pmf()
 {
   // allocate a new grid to store the pmf
   colvar_grid_scalar *pmf = new colvar_grid_scalar(*hills_energy);
+  colvar_grid_scalar *time_independent_grid = new colvar_grid_scalar(*hills_energy);
   pmf->setup();
+  time_independent_grid->setup();
 
   if ((comm == single_replica) || (dump_replica_fes)) {
     // output the PMF from this instance or replica
     pmf->reset();
+    time_independent_grid->reset();
     pmf->add_grid(*hills_energy);
 
     if (ebmeta) {
@@ -1835,6 +1838,24 @@ void colvarbias_meta::write_pmf()
       }
     }
 
+    cvm::real kbt = cvm::temperature() * cvm::boltzmann();
+    time_independent_grid->add_grid(*hills_energy, kbt);
+    if (!well_tempered) {
+      // Calculate log(sum(exp(V(s,t)/kbT)))
+      const cvm::real max_exponent = time_independent_grid->maximum_value();
+      time_independent_grid->add_constant(-1.0 * max_exponent);
+      time_independent_grid->apply(std::exp);
+      cvm::real logsumexp = max_exponent + std::log(time_independent_grid->sum());
+      // Calculate Δs
+      cvm::real delta_s = 1.0;
+      for (size_t i = 0; i < time_independent_grid->widths.size(); ++i) {
+        delta_s *= time_independent_grid->widths[i];
+      }
+      // Calculate c(t) = log(sum(exp(V(s,t)/kbT))) + log(Δs)
+      const cvm::real c_t = logsumexp + std::log(delta_s);
+      // F(s) = -V(s,t) + kbt * c(t)
+      pmf->add_constant(-1.0 * kbt * c_t);
+    }
     cvm::real const max = pmf->maximum_value();
     pmf->add_constant(-1.0 * max);
     pmf->multiply_constant(-1.0);
@@ -1893,6 +1914,7 @@ void colvarbias_meta::write_pmf()
     cvm::proxy->close_output_stream(fes_file_name);
   }
 
+  delete time_independent_grid;
   delete pmf;
 }
 
