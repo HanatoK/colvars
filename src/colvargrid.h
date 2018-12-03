@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cmath>
+#include <functional>
 
 #include "colvar.h"
 #include "colvarmodule.h"
@@ -543,6 +544,24 @@ public:
     for (size_t i = 0; i < nt; i++)
       data[i] += t;
     has_data = true;
+  }
+
+  /// \brief Modify each value through lambda function, functors or function pointers
+  inline void apply(std::function<T(T)> func)
+  {
+    for (size_t i = 0; i < nt; ++i) {
+      data[i] = func(data[i]);
+    }
+  }
+
+  /// \brief Sum
+  inline T sum() const
+  {
+    T result = T();
+    for (size_t i = 0; i < nt; ++i) {
+      result += data[i];
+    }
+    return result;
   }
 
   /// \brief Multiply all elements by a scalar constant (fast loop)
