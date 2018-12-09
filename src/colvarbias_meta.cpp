@@ -1839,30 +1839,32 @@ void colvarbias_meta::write_pmf()
     }
 
     cvm::real kbt = cvm::temperature() * cvm::boltzmann();
-    time_independent_grid->add_grid(*hills_energy, kbt);
-    if (!well_tempered) {
-      // Calculate log(sum(exp(V(s,t)/kbT)))
-      const cvm::real max_exponent = time_independent_grid->maximum_value();
-      time_independent_grid->add_constant(-1.0 * max_exponent);
-      time_independent_grid->apply([](cvm::real x){return std::exp(x);});
-      cvm::real logsumexp = max_exponent + std::log(time_independent_grid->sum());
-      // Calculate Δs
-      cvm::real delta_s = 1.0;
-      for (size_t i = 0; i < time_independent_grid->widths.size(); ++i) {
-        delta_s *= time_independent_grid->widths[i];
-      }
-      // Calculate c(t) = log(sum(exp(V(s,t)/kbT))) + log(Δs)
-      const cvm::real c_t = logsumexp + std::log(delta_s);
-      // F(s) = -V(s,t) + kbt * c(t)
-      pmf->add_constant(-1.0 * kbt * c_t);
-    }
-//     cvm::real const max = pmf->maximum_value();
-//     pmf->add_constant(-1.0 * max);
-    pmf->multiply_constant(-1.0);
+    cvm::real V_factor = 1.0;
     if (well_tempered) {
-      cvm::real const well_temper_scale = (bias_temperature + cvm::temperature()) / bias_temperature;
-      pmf->multiply_constant(well_temper_scale);
+      // Calculate gamma (bias factor)
+      cvm::real bias_factor = (bias_temperature + cvm::temperature()) / cvm::temperature();
+      V_factor = bias_factor / (bias_temperature * cvm::boltzmann());
+    } else {
+      V_factor = 1.0 / kbt;
     }
+    pmf->add_grid(*hills_energy, V_factor);
+    // Calculate log(sum(exp(V(s,t)/kbT)))
+    time_independent_grid->add_grid(*hills_energy, V_factor);
+    const cvm::real max_exponent = time_independent_grid->maximum_value();
+    time_independent_grid->add_constant(-1.0 * max_exponent);
+    time_independent_grid->apply([](cvm::real x){return std::exp(x);});
+    cvm::real logsumexp = max_exponent + std::log(time_independent_grid->sum());
+    // Calculate Δs
+    cvm::real delta_s = 1.0;
+    for (size_t i = 0; i < time_independent_grid->widths.size(); ++i) {
+      delta_s *= time_independent_grid->widths[i];
+    }
+    // Calculate c(t) = log(sum(exp(V(s,t)/kbT))) + log(Δs)
+    const cvm::real c_t = logsumexp + std::log(delta_s);
+    pmf->add_constant(c_t);
+    pmf->multiply_constant(-1.0 * kbt);
+    const cvm::real pmf_min = pmf->minimum_value();
+    pmf->add_constant(-1.0 * pmf_min);
     {
       std::string const fes_file_name(this->output_prefix +
                                       ((comm != single_replica) ? ".partial" : "") +
