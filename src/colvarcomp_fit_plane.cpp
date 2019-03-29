@@ -26,15 +26,14 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
     n = groups.size();
     /// x denotes the value of collective variable!
     x.type(colvarvalue::type_3vector);
-    // I don't know what implicit gradient is, but other vector-based variables use it. So do I.
-    enable(f_cvc_implicit_gradient);
+    disable(f_cvc_explicit_gradient);
     enable(f_cvc_com_based);
 }
 
 colvar::fit_plane::fit_plane() {
     function_type = "fit_plane";
     x.type(colvarvalue::type_3vector);
-    enable(f_cvc_implicit_gradient);
+    disable(f_cvc_explicit_gradient);
     enable(f_cvc_com_based);
 }
 
