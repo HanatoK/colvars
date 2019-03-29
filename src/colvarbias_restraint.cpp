@@ -1076,7 +1076,7 @@ void colvarbias_restraint_harmonic_walls::communicate_forces()
                variables(i)->name+"\".\n");
     }
     // Impulse-style multiple timestep
-    variables(i)->add_bias_force_actual_value(cvm::real(time_step_factor) * colvar_forces[i]);
+    variables(i)->add_bias_force(cvm::real(time_step_factor) * colvar_forces[i]);
   }
 }
 
@@ -1084,7 +1084,7 @@ void colvarbias_restraint_harmonic_walls::communicate_forces()
 cvm::real colvarbias_restraint_harmonic_walls::colvar_distance(size_t i) const
 {
   colvar *cv = variables(i);
-  colvarvalue const &cvv = variables(i)->actual_value();
+  colvarvalue const &cvv = variables(i)->value();
 
   // For a periodic colvar, both walls may be applicable at the same time
   // in which case we pick the closer one
