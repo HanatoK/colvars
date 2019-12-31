@@ -1492,6 +1492,7 @@ class colvar::CartesianBasedPath
   : public colvar::cvc
 {
 protected:
+    virtual void computeDistanceBetweenReferenceFrames(std::vector<cvm::real>& result);
     virtual void computeDistanceToReferenceFrames(std::vector<cvm::real>& result);
     /// Selected atoms
     cvm::atom_group *atoms;
@@ -1632,7 +1633,31 @@ public:
     virtual void apply_force(colvarvalue const &force);
 };
 
+class colvar::aspath
+  : public colvar::CartesianBasedPath, public ArithmeticPathCV::ArithmeticPathBase<cvm::atom_pos, cvm::real, ArithmeticPathCV::path_sz::S>
+{
+protected:
+    virtual void updateDistanceToReferenceFrames();
+public:
+    aspath(std::string const &conf);
+    virtual ~aspath() {}
+    virtual void calc_value();
+    virtual void calc_gradients();
+    virtual void apply_force(colvarvalue const &force);
+};
 
+class colvar::azpath
+  : public colvar::CartesianBasedPath, public ArithmeticPathCV::ArithmeticPathBase<cvm::atom_pos, cvm::real, ArithmeticPathCV::path_sz::Z>
+{
+protected:
+    virtual void updateDistanceToReferenceFrames();
+public:
+    azpath(std::string const &conf);
+    virtual ~azpath() {}
+    virtual void calc_value();
+    virtual void calc_gradients();
+    virtual void apply_force(colvarvalue const &force);
+};
 
 class colvar::aspathCV
   : public colvar::CVBasedPath, public ArithmeticPathCV::ArithmeticPathBase<colvarvalue, cvm::real, ArithmeticPathCV::path_sz::S>
@@ -1710,6 +1735,20 @@ class colvar::gzpathCV
 {
 public:
     gzpathCV(std::string const &conf) : componentDisabled(conf) {}
+};
+
+class colvar::aspath
+  : public colvar::componentDisabled
+{
+public:
+    aspath(std::string const &conf) : componentDisabled(conf) {}
+};
+
+class colvar::azpath
+  : public colvar::componentDisabled
+{
+public:
+    azpath(std::string const &conf) : componentDisabled(conf) {}
 };
 
 class colvar::aspathCV
