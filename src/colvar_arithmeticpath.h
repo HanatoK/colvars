@@ -102,27 +102,18 @@ void ArithmeticPathBase<element_type, scalar_type, path_type>::compute() {
 
 template <typename element_type, typename scalar_type, path_sz path_type>
 void ArithmeticPathBase<element_type, scalar_type, path_type>::computeDerivatives() {
-    for (size_t j_elem = 0; j_elem < num_elements; ++j_elem) {
-        element_type dsdxj_numerator_part1(dsdx[j_elem]);
-        element_type dsdxj_numerator_part2(dsdx[j_elem]);
-        element_type dzdxj_numerator(dsdx[j_elem]);
-        dsdxj_numerator_part1.reset();
-        dsdxj_numerator_part2.reset();
-        dzdxj_numerator.reset();
-        for (size_t i_frame = 0; i_frame < frame_element_distances.size(); ++i_frame) {
-            element_type derivative_tmp = -2.0 * lambda * weights[j_elem] * weights[j_elem] * frame_element_distances[i_frame][j_elem];
-            dsdxj_numerator_part1 += s_numerator_frame[i_frame] * derivative_tmp;
-            dsdxj_numerator_part2 += s_denominator_frame[i_frame] * derivative_tmp;
-            dzdxj_numerator += s_denominator_frame[i_frame] * derivative_tmp;
+    std::fill(dsdx.begin(), dsdx.end(), element_type());
+    std::fill(dzdx.begin(), dzdx.end(), element_type());
+    for (size_t i_frame = 0; i_frame < frame_element_distances.size(); ++i_frame) {
+        vector<element_type> frame_derivatives = computeDerivatives(i_frame);
+        for (size_t j_elem = 0; j_elem < num_elements; ++j_elem) {
+            if (path_type == path_sz::S) {
+                dsdx[j_elem] += frame_derivatives[j_elem];
+            }
+            if (path_type == path_sz::Z) {
+                dzdx[j_elem] += frame_derivatives[j_elem];
+            }
         }
-        dsdxj_numerator_part1 *= denominator_s;
-        dsdxj_numerator_part2 *= numerator_s;
-        if ((dsdxj_numerator_part1 - dsdxj_numerator_part2).norm() < std::numeric_limits<scalar_type>::min()) {
-            dsdx[j_elem] = 0;
-        } else {
-            dsdx[j_elem] = (dsdxj_numerator_part1 - dsdxj_numerator_part2) / (denominator_s * denominator_s) * normalization_factor;
-        }
-        dzdx[j_elem] = -1.0 / lambda * dzdxj_numerator / denominator_s;
     }
 }
 
