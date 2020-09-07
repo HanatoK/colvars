@@ -15,6 +15,7 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
         /// Check the existence the group's name
         if (key_lookup(conf, group_name.c_str())) {
             groups.push_back(parse_group(conf, group_name.c_str()));
+            register_atom_group(groups.back());
             ++group_index;
         } else {
             has_groups = false;
@@ -23,18 +24,19 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
     if (groups.size() < 3) {
         cvm::error("Error: No enough atom groups(at least 3)!", INPUT_ERROR);
     }
+    cvm::log("Warning: this CV is not PBC-aware, and cannot fit a plane that goes through the Z axis.");
     n = groups.size();
-    /// x denotes the value of collective variable!
     x.type(colvarvalue::type_3vector);
     disable(f_cvc_explicit_gradient);
-    enable(f_cvc_com_based);
+    dk0norm.assign(n, std::vector<double>(3, 0));
+    dk1norm.assign(n, std::vector<double>(3, 0));
+    dk2norm.assign(n, std::vector<double>(3, 0));
 }
 
 colvar::fit_plane::fit_plane() {
     function_type = "fit_plane";
     x.type(colvarvalue::type_3vector);
     disable(f_cvc_explicit_gradient);
-    enable(f_cvc_com_based);
 }
 
 void colvar::fit_plane::calc_value() {
@@ -50,12 +52,7 @@ void colvar::fit_plane::calc_value() {
     g = 0;
     // TODO: PBC-aware COM calculation
     for (auto it_groups = groups.begin(); it_groups != groups.end(); ++it_groups) {
-        // Calculate the COM of atom groups
-        (*it_groups)->calc_center_of_mass();
         cvm::atom_pos group_pos = (*it_groups)->center_of_mass();
-        // DEBUG logging
-//         cvm::log(std::string("Fit plane: ") + std::to_string(group_pos.x) + " " + std::to_string(group_pos.y) + " " + std::to_string(group_pos.z) + '\n');
-        // Sum up the necessary variables
         sum_xi += group_pos.x;
         sum_yi += group_pos.y;
         sum_zi += group_pos.z;
@@ -67,7 +64,7 @@ void colvar::fit_plane::calc_value() {
     }
     g = sum_xi_square * (n * sum_yi_square - sum_yi * sum_yi) - sum_xi_yi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_xi * (sum_xi_yi * sum_yi - sum_xi * sum_yi_square);
     if (g == 0) {
-        cvm::error("Error: The plane may go through the z-axis!", FATAL_ERROR);
+        cvm::error("Error: The plane may go through the Z axis! Please consider applying a restraint to circumvent this.", FATAL_ERROR);
     }
     k0 = (sum_xi_zi * (sum_yi * sum_yi - n * sum_yi_square) + sum_yi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_zi * (sum_xi * sum_yi_square - sum_yi * sum_xi_yi)) / g;
     k1 = (sum_xi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_yi_zi * (sum_xi * sum_xi - n * sum_xi_square) + sum_zi * (sum_xi_square * sum_yi - sum_xi * sum_xi_yi)) / g;
@@ -76,18 +73,13 @@ void colvar::fit_plane::calc_value() {
     x[0] = k0 * norm;
     x[1] = k1 * norm;
     x[2] = k2 * norm;
-    calc_gradients();
-//     cvm::log("Fit plane: ======================================");
 }
 
 void colvar::fit_plane::calc_gradients() {
-    dk0norm.assign(n, std::vector<double>(3, 0));
-    dk1norm.assign(n, std::vector<double>(3, 0));
-    dk2norm.assign(n, std::vector<double>(3, 0));
     const double f1 = sum_xi_zi * (sum_yi * sum_yi - n * sum_yi_square) + sum_yi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_zi * (sum_xi * sum_yi_square - sum_yi * sum_xi_yi);
     const double f2 = sum_xi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_yi_zi * (sum_xi * sum_xi - n * sum_xi_square) + sum_zi * (sum_xi_square * sum_yi - sum_xi * sum_xi_yi);
     for (size_t i = 0; i < n; ++i) {
-        cvm::atom_pos group_pos = groups[i]->center_of_mass();
+        const cvm::atom_pos group_pos = groups[i]->center_of_mass();
         const double &xi = group_pos.x;
         const double &yi = group_pos.y;
         const double &zi = group_pos.z;
@@ -117,16 +109,6 @@ void colvar::fit_plane::calc_gradients() {
         dk2norm[i][0] = 1.0 * dnorm_dxi;
         dk2norm[i][1] = 1.0 * dnorm_dyi;
         dk2norm[i][2] = 1.0 * dnorm_dzi;
-        // DEBUG logging
-//         cvm::log(std::string("Fit plane derivative: dk0/dx") + std::to_string(i+1) + std::string(": ") + std::to_string(dk0norm[i][0]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk0/dy") + std::to_string(i+1) + std::string(": ") + std::to_string(dk0norm[i][1]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk0/dz") + std::to_string(i+1) + std::string(": ") + std::to_string(dk0norm[i][2]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk1/dx") + std::to_string(i+1) + std::string(": ") + std::to_string(dk1norm[i][0]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk1/dy") + std::to_string(i+1) + std::string(": ") + std::to_string(dk1norm[i][1]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk1/dz") + std::to_string(i+1) + std::string(": ") + std::to_string(dk1norm[i][2]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk2/dx") + std::to_string(i+1) + std::string(": ") + std::to_string(dk2norm[i][0]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk2/dy") + std::to_string(i+1) + std::string(": ") + std::to_string(dk2norm[i][1]) + '\n');
-//         cvm::log(std::string("Fit plane derivative: dk2/dz") + std::to_string(i+1) + std::string(": ") + std::to_string(dk2norm[i][2]) + '\n');
     }
 }
 
