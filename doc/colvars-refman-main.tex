@@ -4012,6 +4012,44 @@ These may be defined a custom functions if implemented\cvleptononly{ (see \ref{s
 }\fi % \ifdefined\cvvmdornamd{}
 
 
+\cvsubsec{\texttt{fit\_plane:} Fitting a plane through atom 
+groups}{sec:cvc_fit_plane}
+
+This component finds the best fitting plane that goes through the centers of 
+mass of a set of atom groups by the least linear square algorithm. Assuming 
+that you have specified $N$ atom groups, and the COM of $j$-th atom group is 
+$(x_j,y_j,z_j)$, this component will first determine the best fitting plane in 
+equation $k_0 x + k_1 y + z = k_2$ by solving
+\begin{equation}
+\begin{aligned} 
+	&\tilde{z}_j = -k_0 x_j - k_1 y_j - k_2\\
+	&\frac{\partial}{\partial k_0}\sum_{j=1}^{N}(\tilde{z}_j-z_j)^2=0\\
+	&\frac{\partial}{\partial k_1}\sum_{j=1}^{N}(\tilde{z}_j-z_j)^2=0\\
+	&\frac{\partial}{\partial k_2}\sum_{j=1}^{N}(\tilde{z}_j-z_j)^2=0,
+\end{aligned}
+\end{equation}
+and then, it will return a 3-dimensional normal vector $\mathbf{o}$ of the 
+plane:
+\begin{equation}
+	\mathbf{o}=\left(\frac{k_0}{\sqrt{k_0^2+k_1^2+1}}, 
+	\frac{k_1}{\sqrt{k_0^2+k_1^2+1}}, \frac{1}{\sqrt{k_0^2+k_1^2+1}}\right)
+\end{equation}
+
+\begin{cvcoptions}
+	\item %
+	\key
+	{groupN}{%
+		\texttt{fit\_plane}}{%
+		Specify the atom groups for fitting}{%
+		Block \texttt{groupN \{...\}}
+		}{%
+		You can specify any number of atom groups for fitting the plane, for 
+		example, \texttt{group1}, \texttt{group2}, \texttt{group3} and 
+		\texttt{group4}. The number of atom groups must be larger than 3.
+	}
+\end{cvcoptions}
+
+
 \cvsubsec{Shared keywords for all components}{sec:cvc_common}
 
 The following options can be used for any of the above colvar components in order to obtain a polynomial combination\ifdefined\cvscriptcallbacks{ or any user-supplied function provided by \refkey{scriptedFunction}{sec:cvc_superp}}\fi.
