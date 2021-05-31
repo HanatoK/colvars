@@ -1561,6 +1561,8 @@ class colvar::linearCombination
 protected:
     /// Sub-colvar components
     std::vector<colvar::cvc*> cv;
+    /// If all sub-cvs use explicit gradients then we also use it
+    bool use_explicit_gradients;
 protected:
     cvm::real getPolynomialFactorOfCVGradient(size_t i_cv) const;
 public:
