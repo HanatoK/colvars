@@ -28,16 +28,16 @@ extern std::map<std::string, std::pair<std::function<double(double)>, std::funct
 
 #ifdef LEPTON
 // allow to define a custom activation function
-class customActivationFunction {
+class CustomActivationFunction {
 public:
     /// empty constructor
-    customActivationFunction();
+    CustomActivationFunction();
     /// construct by an mathematical expression
-    customActivationFunction(const std::string& expression_string);
+    CustomActivationFunction(const std::string& expression_string);
     /// copy constructor
-    customActivationFunction(const customActivationFunction& source);
+    CustomActivationFunction(const CustomActivationFunction& source);
     /// overload assignment operator
-    customActivationFunction& operator=(const customActivationFunction& source);
+    CustomActivationFunction& operator=(const CustomActivationFunction& source);
     /// setter for the custom expression
     void setExpression(const std::string& expression_string);
     /// getter for the custom expression
@@ -55,7 +55,27 @@ private:
 };
 #endif
 
-class denseLayer {
+// abstract interface of all layers
+class LayerBase {
+public:
+    LayerBase() {}
+    LayerBase(const std::vector<std::string>& config) {}
+    virtual ~LayerBase() {}
+    /// get the input size
+    virtual size_t getInputSize() const = 0;
+    /// get the output size
+    virtual size_t getOutputSize() const = 0;
+    /// compute the value of this layer
+    virtual void compute(const std::vector<double>& input, std::vector<double>& output) const = 0;
+    /// compute the gradient of i-th output wrt j-th input
+    virtual double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const = 0;
+    /// output[i][j] is the gradient of i-th output wrt j-th input
+    virtual void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const = 0;
+    /// get the type of the layer
+    virtual std::string layerType() const = 0;
+};
+
+class DenseLayer: public LayerBase {
 private:
     size_t m_input_size;
     size_t m_output_size;
@@ -63,7 +83,7 @@ private:
     std::function<double(double)> m_activation_function_derivative;
 #ifdef LEPTON
     bool m_use_custom_activation;
-    customActivationFunction m_custom_activation_function;
+    CustomActivationFunction m_custom_activation_function;
 #else
     static const bool m_use_custom_activation = false;
 #endif
@@ -73,51 +93,47 @@ private:
     std::vector<double> m_biases;
 public:
     /// empty constructor
-    denseLayer() {}
-    /*! @param[in]  weights_file    filename of the weights file
-     *  @param[in]  biases_file     filename of the biases file
-     *  @param[in]  f               activation function
-     *  @param[in]  df              derivative of the activation function
-     */
-    denseLayer(const std::string& weights_file, const std::string& biases_file, const std::function<double(double)>& f, const std::function<double(double)>& df);
-#ifdef LEPTON
-    /*! @param[in]  weights_file                 filename of the weights file
-     *  @param[in]  biases_file                  filename of the biases file
-     *  @param[in]  custom_activation_expression the expression of the custom activation function
-     */
-    denseLayer(const std::string& weights_file, const std::string& biases_file, const std::string& custom_activation_expression);
-#endif
-    /// read data from file
+    DenseLayer(): LayerBase() {}
+    DenseLayer(const std::vector<std::string>& config);
+    /// read weights and biases from file
     void readFromFile(const std::string& weights_file, const std::string& biases_file);
     /// setup activation function
     void setActivationFunction(const std::function<double(double)>& f, const std::function<double(double)>& df);
     /// compute the value of this layer
-    void compute(const std::vector<double>& input, std::vector<double>& output) const;
+    void compute(const std::vector<double>& input, std::vector<double>& output) const override;
     /// compute the gradient of i-th output wrt j-th input
-    double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const;
+    double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const override;
     /// output[i][j] is the gradient of i-th output wrt j-th input
-    void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const;
+    void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const override;
     /// get the input size
-    size_t getInputSize() const {
+    size_t getInputSize() const override {
         return m_input_size;
     }
     /// get the output size
-    size_t getOutputSize() const {
+    size_t getOutputSize() const override {
         return m_output_size;
     }
-    /// getter for weights and biases
+    /// get the weights
     double getWeight(size_t i, size_t j) const {
         return m_weights[i][j];
     }
+    /// get the biases
     double getBias(size_t i) const {
         return m_biases[i];
     }
-    ~denseLayer() {}
+    /// get the type of the layer
+    std::string layerType() const override {
+        return "DenseLayer";
+    }
+    ~DenseLayer() {}
 };
+
+// class circularToLinearLayer {
+// };
 
 class neuralNetworkCompute {
 private:
-    std::vector<denseLayer> m_dense_layers;
+    std::vector<std::unique_ptr<LayerBase>> m_layers;
     std::vector<double> m_input;
     /// temporary output for each layer, useful to speedup the gradients' calculation
     std::vector<std::vector<double>> m_layers_output;
@@ -127,9 +143,9 @@ private:
     /// helper function: multiply two matrix constructed from 2D vector
     static std::vector<std::vector<double>> multiply_matrix(const std::vector<std::vector<double>>& A, const std::vector<std::vector<double>>& B);
 public:
-    neuralNetworkCompute(): m_dense_layers(0), m_layers_output(0) {}
-    neuralNetworkCompute(const std::vector<denseLayer>& dense_layers);
-    bool addDenseLayer(const denseLayer& layer);
+    neuralNetworkCompute(): m_layers(0), m_layers_output(0) {}
+    neuralNetworkCompute(std::vector<std::unique_ptr<LayerBase>> dense_layers);
+    bool addLayer(std::unique_ptr<LayerBase> layer);
     // for faster computation
     const std::vector<double>& input() const {return m_input;}
     std::vector<double>& input() {return m_input;}
@@ -138,10 +154,13 @@ public:
     double getOutput(const size_t i) const {return m_layers_output.back()[i];}
     double getGradient(const size_t i, const size_t j) const {return m_chained_grad[i][j];}
     /// get a specified layer
-    const denseLayer& getLayer(const size_t i) const {return m_dense_layers[i];}
+    const std::unique_ptr<LayerBase>& getLayer(const size_t i) const {return m_layers[i];}
     /// get the number of layers
-    size_t getNumberOfLayers() const {return m_dense_layers.size();}
+    size_t getNumberOfLayers() const {return m_layers.size();}
 };
+
+/// factory function for creating a new layer
+std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config);
 
 }
 #endif
