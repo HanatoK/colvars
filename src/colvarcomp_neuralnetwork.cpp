@@ -7,6 +7,8 @@
 #include "colvarcomp.h"
 #include "colvar_neuralnetworkcompute.h"
 
+#include <map>
+
 using namespace neuralnetworkCV;
 
 colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination(conf) {
@@ -14,116 +16,143 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
     // the output of neural network consists of multiple values
     // read "output_component" key to determine it
     get_keyval(conf, "output_component", m_output_index);
-    // read weight files
-    bool has_weight_files = true;
-    size_t num_layers_weight = 0;
-    std::vector<std::string> weight_files;
-    while (has_weight_files) {
-        std::string lookup_key = std::string{"layer"} + cvm::to_str(num_layers_weight + 1) + std::string{"_WeightsFile"};
-        if (key_lookup(conf, lookup_key.c_str())) {
-            std::string weight_filename;
-            get_keyval(conf, lookup_key.c_str(), weight_filename, std::string(""));
-            weight_files.push_back(weight_filename);
-            cvm::log(std::string{"Will read layer["} + cvm::to_str(num_layers_weight + 1) + std::string{"] weights from "} + weight_filename + '\n');
-            ++num_layers_weight;
-        } else {
-            has_weight_files = false;
-        }
-    }
-    // read bias files
-    bool has_bias_files = true;
-    size_t num_layers_bias = 0;
-    std::vector<std::string> bias_files;
-    while (has_bias_files) {
-        std::string lookup_key = std::string{"layer"} + cvm::to_str(num_layers_bias + 1) + std::string{"_BiasesFile"};
-        if (key_lookup(conf, lookup_key.c_str())) {
-            std::string bias_filename;
-            get_keyval(conf, lookup_key.c_str(), bias_filename, std::string(""));
-            bias_files.push_back(bias_filename);
-            cvm::log(std::string{"Will read layer["} + cvm::to_str(num_layers_bias + 1) + std::string{"] biases from "} + bias_filename + '\n');
-            ++num_layers_bias;
-        } else {
-            has_bias_files = false;
-        }
-    }
-    // read activation function strings
-    bool has_activation_functions = true;
-    size_t num_activation_functions = 0;
-    // pair(is_custom_function, function_string)
-    std::vector<std::pair<bool, std::string>> activation_functions;
-    while (has_activation_functions) {
-        std::string lookup_key = std::string{"layer"} + cvm::to_str(num_activation_functions + 1) + std::string{"_activation"};
-        std::string lookup_key_custom = std::string{"layer"} + cvm::to_str(num_activation_functions + 1) + std::string{"_custom_activation"};
-        if (key_lookup(conf, lookup_key.c_str())) {
-            // Ok, this is not a custom function
-            std::string function_name;
-            get_keyval(conf, lookup_key.c_str(), function_name, std::string(""));
-            if (activation_function_map.find(function_name) == activation_function_map.end()) {
-                cvm::error("Unknown activation function name: \"" + function_name + "\".\n");
+    std::map<size_t, std::vector<std::string>> nn_config_map;
+    size_t layer_index = 1;
+    while (true) {
+        bool layer_read_ok = false;
+        // lookup dense layer
+        const std::string key_dense_weights =
+            std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_WeightsFile"};
+        if (!layer_read_ok && key_lookup(conf, key_dense_weights.c_str())) {
+            // continue to lookup biases file and activation
+            const std::string key_dense_biases =
+                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_BiasesFile"};
+            const std::string key_dense_activation =
+                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_dense_customactivation =
+                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            std::vector<std::string> config_strings(5);
+            config_strings.at(0) = "DenseLayer";
+            if (!get_keyval(conf, key_dense_weights.c_str(), config_strings.at(1), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_dense_weights + "\".\n");
                 return;
             }
-            activation_functions.push_back(std::make_pair(false, function_name));
-            cvm::log(std::string{"The activation function for layer["} + cvm::to_str(num_activation_functions + 1) + std::string{"] is "} + function_name + '\n');
-            ++num_activation_functions;
-#ifdef LEPTON
-        } else if (key_lookup(conf, lookup_key_custom.c_str())) {
-            std::string function_expression;
-            get_keyval(conf, lookup_key_custom.c_str(), function_expression, std::string(""));
-            activation_functions.push_back(std::make_pair(true, function_expression));
-            cvm::log(std::string{"The custom activation function for layer["} + cvm::to_str(num_activation_functions + 1) + std::string{"] is "} + function_expression + '\n');
-            ++num_activation_functions;
-#endif
-        } else {
-            has_activation_functions = false;
-        }
-    }
-    // expect the three numbers are equal
-    if ((num_layers_weight != num_layers_bias) || (num_layers_bias != num_activation_functions)) {
-        cvm::error("Error: the numbers of weights, biases and activation functions do not match.\n");
-        return;
-    }
-//     nn = std::make_unique<neuralnetworkCV::neuralNetworkCompute>();
-    // std::make_unique is only available in C++14
-    nn = std::unique_ptr<neuralnetworkCV::neuralNetworkCompute>(new neuralnetworkCV::neuralNetworkCompute());
-    for (size_t i_layer = 0; i_layer < num_layers_weight; ++i_layer) {
-        denseLayer d;
-#ifdef LEPTON
-        if (activation_functions[i_layer].first) {
-            // use custom function as activation function
-            try {
-                d = denseLayer(weight_files[i_layer], bias_files[i_layer], activation_functions[i_layer].second);
-            } catch (std::exception &ex) {
-                cvm::error("Error on initializing layer " + cvm::to_str(i_layer) + " (" + ex.what() + ")\n", COLVARS_INPUT_ERROR);
+            if (!get_keyval(conf, key_dense_biases.c_str(), config_strings.at(2), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_dense_biases + "\".\n");
                 return;
             }
-        } else {
-#endif
-            // query the map of supported activation functions
-            const auto& f = activation_function_map[activation_functions[i_layer].second].first;
-            const auto& df = activation_function_map[activation_functions[i_layer].second].second;
-            try {
-                d = denseLayer(weight_files[i_layer], bias_files[i_layer], f, df);
-            } catch (std::exception &ex) {
-                cvm::error("Error on initializing layer " + cvm::to_str(i_layer) + " (" + ex.what() + ")\n", COLVARS_INPUT_ERROR);
-                return;
+            if (key_lookup(conf, key_dense_activation.c_str())) {
+                config_strings.at(3) = "builtin";
+                get_keyval(conf, key_dense_activation.c_str(), config_strings.at(4), std::string(""));
             }
-#ifdef LEPTON
-        }
-#endif
-        // add a new dense layer to network
-        if (nn->addDenseLayer(d)) {
-            if (cvm::debug()) {
-                // show information about the neural network
-                cvm::log("Layer " + cvm::to_str(i_layer) + " : has " + cvm::to_str(d.getInputSize()) + " input nodes and " + cvm::to_str(d.getOutputSize()) + " output nodes.\n");
-                for (size_t i_output = 0; i_output < d.getOutputSize(); ++i_output) {
-                    for (size_t j_input = 0; j_input < d.getInputSize(); ++j_input) {
-                        cvm::log("    weights[" + cvm::to_str(i_output) + "][" + cvm::to_str(j_input) + "] = " + cvm::to_str(d.getWeight(i_output, j_input)));
-                    }
-                    cvm::log("    biases[" + cvm::to_str(i_output) + "] = " + cvm::to_str(d.getBias(i_output)) + "\n");
+            if (key_lookup(conf, key_dense_customactivation.c_str())) {
+                if (!config_strings.at(3).empty()) {
+                    cvm::error("The activation function has been already specified by " + key_dense_activation +
+                               ", which is in conflict with " + key_dense_customactivation + ". Please keep only"
+                               " one of the option.\n");
+                    return;
+                } else {
+                    config_strings.at(3) = "custom";
+                    get_keyval(conf, key_dense_customactivation.c_str(), config_strings.at(4), std::string(""));
                 }
             }
+            if (config_strings.at(3).empty()) {
+                cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
+                return;
+            }
+            nn_config_map[layer_index] = config_strings;
+            layer_read_ok = true;
+        }
+        // lookup special layer: circular_to_linear layer
+        const std::string key_c2l_c_weights =
+            std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularWeightsFile"};
+        if (!layer_read_ok && key_lookup(conf, key_c2l_c_weights.c_str())) {
+            // continue to lookup circular biases file, linear weights/biases files and activation
+            const std::string key_c2l_c_biases =
+                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
+            const std::string key_c2l_l_weights =
+                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearWeightsFile"};
+            const std::string key_c2l_l_biases =
+                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearBiasesFile"};
+            const std::string key_c2l_activation =
+                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_c2l_customactivation =
+                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            std::vector<std::string> config_strings(7);
+            config_strings.at(0) = "CircularToLinearLayer";
+            if (!get_keyval(conf, key_c2l_c_weights.c_str(), config_strings.at(1), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_c_weights + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_c_biases.c_str(), config_strings.at(2), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_c_biases + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_l_weights.c_str(), config_strings.at(3), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_l_weights + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_l_biases.c_str(), config_strings.at(4), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_l_biases + "\".\n");
+                return;
+            }
+            if (key_lookup(conf, key_c2l_activation.c_str())) {
+                config_strings.at(5) = "builtin";
+                get_keyval(conf, key_c2l_activation.c_str(), config_strings.at(6), std::string(""));
+            }
+            if (key_lookup(conf, key_c2l_customactivation.c_str())) {
+                if (!config_strings.at(5).empty()) {
+                    cvm::error("The activation function has been already specified by " + key_c2l_activation +
+                               ", which is in conflict with " + key_c2l_customactivation + ". Please keep only"
+                               " one of the option.\n");
+                    return;
+                } else {
+                    config_strings.at(5) = "custom";
+                    get_keyval(conf, key_c2l_customactivation.c_str(), config_strings.at(6), std::string(""));
+                }
+            }
+            if (config_strings.at(5).empty()) {
+                cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
+                return;
+            }
+            nn_config_map[layer_index] = config_strings;
+            layer_read_ok = true;
+        }
+        if (layer_read_ok) {
+            ++layer_index;
+            continue;
         } else {
-            cvm::error("Error: error on adding a new dense layer.\n");
+            break;
+        }
+    }
+    // std::make_unique is only available in C++14
+    nn = std::unique_ptr<neuralnetworkCV::neuralNetworkCompute>(new neuralnetworkCV::neuralNetworkCompute());
+    for (size_t i_layer = 1; i_layer < nn_config_map.size() + 1; ++i_layer) {
+        const std::vector<std::string>& layer_config = nn_config_map[i_layer];
+        try {
+            std::unique_ptr<LayerBase> layer = neuralnetworkCV::createLayer(layer_config);
+            // add a new dense layer to network
+            if (nn->addLayer(std::move(layer))) {
+                if (cvm::debug()) {
+                    const std::unique_ptr<LayerBase>& current_layer = nn->getLayer(i_layer - 1);
+                    // show information about the neural network
+                    if (current_layer->layerType() == "DenseLayer") {
+                        const DenseLayer* d = dynamic_cast<const DenseLayer*>(current_layer.get());
+                        cvm::log("Dense layer " + cvm::to_str(i_layer) + " : has " + cvm::to_str(current_layer->getInputSize()) + " input nodes and " + cvm::to_str(current_layer->getOutputSize()) + " output nodes.\n");
+                        for (size_t i_output = 0; i_output < current_layer->getOutputSize(); ++i_output) {
+                            for (size_t j_input = 0; j_input < current_layer->getInputSize(); ++j_input) {
+                                cvm::log("    weights[" + cvm::to_str(i_output) + "][" + cvm::to_str(j_input) + "] = " + cvm::to_str(d->getWeight(i_output, j_input)));
+                            }
+                            cvm::log("    biases[" + cvm::to_str(i_output) + "] = " + cvm::to_str(d->getBias(i_output)) + "\n");
+                        }
+                    }
+                }
+            } else {
+                throw std::runtime_error("Error: error on adding a new dense layer.\n");
+            }
+        } catch (const std::exception& e) {
+            cvm::log(e.what());
+            cvm::error("Error: error on creating a new layer.\n");
             return;
         }
     }

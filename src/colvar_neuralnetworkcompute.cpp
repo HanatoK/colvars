@@ -20,17 +20,17 @@ std::map<std::string, std::pair<std::function<double(double)>, std::function<dou
 };
 
 #ifdef LEPTON
-customActivationFunction::customActivationFunction():
+CustomActivationFunction::CustomActivationFunction():
 expression(), value_evaluator(nullptr), gradient_evaluator(nullptr),
 input_reference(nullptr), derivative_reference(nullptr) {}
 
-customActivationFunction::customActivationFunction(const std::string& expression_string):
+CustomActivationFunction::CustomActivationFunction(const std::string& expression_string):
 expression(), value_evaluator(nullptr), gradient_evaluator(nullptr),
 input_reference(nullptr), derivative_reference(nullptr) {
     setExpression(expression_string);
 }
 
-customActivationFunction::customActivationFunction(const customActivationFunction& source):
+CustomActivationFunction::CustomActivationFunction(const CustomActivationFunction& source):
 expression(), value_evaluator(nullptr), gradient_evaluator(nullptr),
 input_reference(nullptr), derivative_reference(nullptr) {
     // check if the source object is initialized
@@ -39,7 +39,7 @@ input_reference(nullptr), derivative_reference(nullptr) {
     }
 }
 
-customActivationFunction& customActivationFunction::operator=(const customActivationFunction& source) {
+CustomActivationFunction& CustomActivationFunction::operator=(const CustomActivationFunction& source) {
     if (source.value_evaluator != nullptr) {
         this->setExpression(source.expression);
     } else {
@@ -52,7 +52,7 @@ customActivationFunction& customActivationFunction::operator=(const customActiva
     return *this;
 }
 
-void customActivationFunction::setExpression(const std::string& expression_string) {
+void CustomActivationFunction::setExpression(const std::string& expression_string) {
     expression = expression_string;
     Lepton::ParsedExpression parsed_expression;
     // the variable must be "x" for the input of an activation function
@@ -89,37 +89,53 @@ void customActivationFunction::setExpression(const std::string& expression_strin
     }
 }
 
-std::string customActivationFunction::getExpression() const {
+std::string CustomActivationFunction::getExpression() const {
     return expression;
 }
 
-double customActivationFunction::evaluate(double x) const {
+double CustomActivationFunction::evaluate(double x) const {
     *input_reference = x;
     return value_evaluator->evaluate();
 }
 
-double customActivationFunction::derivative(double x) const {
+double CustomActivationFunction::derivative(double x) const {
     *derivative_reference = x;
     return gradient_evaluator->evaluate();
 }
 #endif
 
-denseLayer::denseLayer(const std::string& weights_file, const std::string& biases_file, const std::function<double(double)>& f, const std::function<double(double)>& df): m_activation_function(f), m_activation_function_derivative(df) {
+
+DenseLayer::DenseLayer(const std::vector<std::string>& config): LayerBase(config) {
+    const std::string& weights_file = config.at(1);
+    const std::string& biases_file = config.at(2);
+    const std::string& activation_type = config.at(3);
+    const std::string& activation_str = config.at(4);
+    if (activation_type == "custom") {
 #ifdef LEPTON
-    m_use_custom_activation = false;
+        m_use_custom_activation = true;
+        m_custom_activation_function = CustomActivationFunction(activation_str);
+        readFromFile(weights_file, biases_file);
+#else
+        throw std::runtime_error("Lepton is required for custom activation function \"" + activation_str + "\", but it is not compiled.");
 #endif
-    readFromFile(weights_file, biases_file);
+    } else if (activation_type == "builtin") {
+#ifdef LEPTON
+        m_use_custom_activation = false;
+#endif
+        auto search_builtin_activation_map = activation_function_map.find(activation_str);
+        if (search_builtin_activation_map != activation_function_map.end()) {
+            m_activation_function = search_builtin_activation_map->second.first;
+            m_activation_function_derivative = search_builtin_activation_map->second.second;
+            readFromFile(weights_file, biases_file);
+        } else {
+            throw std::runtime_error("Unkown activation function \"" + activation_str + "\".");
+        }
+    } else {
+        throw std::runtime_error("Unknown activation type " + activation_type);
+    }
 }
 
-#ifdef LEPTON
-denseLayer::denseLayer(const std::string& weights_file, const std::string& biases_file, const std::string& custom_activation_expression) {
-    m_use_custom_activation = true;
-    m_custom_activation_function = customActivationFunction(custom_activation_expression);
-    readFromFile(weights_file, biases_file);
-}
-#endif
-
-void denseLayer::readFromFile(const std::string& weights_file, const std::string& biases_file) {
+void DenseLayer::readFromFile(const std::string& weights_file, const std::string& biases_file) {
     // parse weights file
     m_weights.clear();
     m_biases.clear();
@@ -171,12 +187,12 @@ void denseLayer::readFromFile(const std::string& weights_file, const std::string
     m_output_size = m_weights.size();
 }
 
-void denseLayer::setActivationFunction(const std::function<double(double)>& f, const std::function<double(double)>& df) {
+void DenseLayer::setActivationFunction(const std::function<double(double)>& f, const std::function<double(double)>& df) {
     m_activation_function = f;
     m_activation_function_derivative = df;
 }
 
-void denseLayer::compute(const std::vector<double>& input, std::vector<double>& output) const {
+void DenseLayer::compute(const std::vector<double>& input, std::vector<double>& output) const {
     for (size_t i = 0; i < m_output_size; ++i) {
         output[i] = 0;
         for (size_t j = 0; j < m_input_size; ++j) {
@@ -195,7 +211,7 @@ void denseLayer::compute(const std::vector<double>& input, std::vector<double>& 
     }
 }
 
-double denseLayer::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
+double DenseLayer::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
     double sum_with_bias = 0;
     for (size_t j_in = 0; j_in < m_input_size; ++j_in) {
         sum_with_bias += input[j_in] * m_weights[i][j_in];
@@ -214,7 +230,7 @@ double denseLayer::computeGradientElement(const std::vector<double>& input, cons
 #endif
 }
 
-void denseLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
+void DenseLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
     for (size_t j = 0; j < m_input_size; ++j) {
         for (size_t i = 0; i < m_output_size; ++i) {
             output_grad[i][j] = computeGradientElement(input, i, j);
@@ -222,28 +238,28 @@ void denseLayer::computeGradient(const std::vector<double>& input, std::vector<s
     }
 }
 
-neuralNetworkCompute::neuralNetworkCompute(const std::vector<denseLayer>& dense_layers): m_dense_layers(dense_layers) {
-    m_layers_output.resize(m_dense_layers.size());
-    m_grads_tmp.resize(m_dense_layers.size());
+neuralNetworkCompute::neuralNetworkCompute(std::vector<std::unique_ptr<LayerBase>> dense_layers): m_layers(std::move(dense_layers)) {
+    m_layers_output.resize(m_layers.size());
+    m_grads_tmp.resize(m_layers.size());
     for (size_t i_layer = 0; i_layer < m_layers_output.size(); ++i_layer) {
-        m_layers_output[i_layer].assign(m_dense_layers[i_layer].getOutputSize(), 0);
-        m_grads_tmp[i_layer].assign(m_dense_layers[i_layer].getOutputSize(), std::vector<double>(m_dense_layers[i_layer].getInputSize(), 0));
+        m_layers_output[i_layer].assign(m_layers[i_layer]->getOutputSize(), 0);
+        m_grads_tmp[i_layer].assign(m_layers[i_layer]->getOutputSize(), std::vector<double>(m_layers[i_layer]->getInputSize(), 0));
     }
 }
 
-bool neuralNetworkCompute::addDenseLayer(const denseLayer& layer) {
-    if (m_dense_layers.empty()) {
-        // add layer to this ann directly if m_dense_layers is empty
-        m_dense_layers.push_back(layer);
-        m_layers_output.push_back(std::vector<double>(layer.getOutputSize()));
-        m_grads_tmp.push_back(std::vector<std::vector<double>>(layer.getOutputSize(), std::vector<double>(layer.getInputSize(), 0)));
+bool neuralNetworkCompute::addLayer(std::unique_ptr<LayerBase> layer) {
+    if (m_layers.empty()) {
+        // add layer to this ann directly if m_layers is empty
+        m_layers_output.push_back(std::vector<double>(layer->getOutputSize()));
+        m_grads_tmp.push_back(std::vector<std::vector<double>>(layer->getOutputSize(), std::vector<double>(layer->getInputSize(), 0)));
+        m_layers.push_back(std::move(layer));
         return true;
     } else {
-        // otherwise, we need to check if the output of last layer in m_dense_layers matches the input of layer to be added
-        if (m_dense_layers.back().getOutputSize() == layer.getInputSize()) {
-            m_dense_layers.push_back(layer);
-            m_layers_output.push_back(std::vector<double>(layer.getOutputSize()));
-            m_grads_tmp.push_back(std::vector<std::vector<double>>(layer.getOutputSize(), std::vector<double>(layer.getInputSize(), 0)));
+        // otherwise, we need to check if the output of last layer in m_layers matches the input of layer to be added
+        if (m_layers.back()->getOutputSize() == layer->getInputSize()) {
+            m_layers_output.push_back(std::vector<double>(layer->getOutputSize()));
+            m_grads_tmp.push_back(std::vector<std::vector<double>>(layer->getOutputSize(), std::vector<double>(layer->getInputSize(), 0)));
+            m_layers.push_back(std::move(layer));
             return true;
         } else {
             return false;
@@ -270,27 +286,36 @@ std::vector<std::vector<double>> neuralNetworkCompute::multiply_matrix(const std
 }
 
 void neuralNetworkCompute::compute() {
-    if (m_dense_layers.empty()) {
+    if (m_layers.empty()) {
         return;
     }
     size_t i_layer;
-    m_dense_layers[0].compute(m_input, m_layers_output[0]);
-    for (i_layer = 1; i_layer < m_dense_layers.size(); ++i_layer) {
-        m_dense_layers[i_layer].compute(m_layers_output[i_layer - 1], m_layers_output[i_layer]);
+    m_layers[0]->compute(m_input, m_layers_output[0]);
+    for (i_layer = 1; i_layer < m_layers.size(); ++i_layer) {
+        m_layers[i_layer]->compute(m_layers_output[i_layer - 1], m_layers_output[i_layer]);
     }
     // gradients of each layer
-    m_dense_layers[0].computeGradient(m_input, m_grads_tmp[0]);
-    for (i_layer = 1; i_layer < m_dense_layers.size(); ++i_layer) {
-        m_dense_layers[i_layer].computeGradient(m_layers_output[i_layer - 1], m_grads_tmp[i_layer]);
+    m_layers[0]->computeGradient(m_input, m_grads_tmp[0]);
+    for (i_layer = 1; i_layer < m_layers.size(); ++i_layer) {
+        m_layers[i_layer]->computeGradient(m_layers_output[i_layer - 1], m_grads_tmp[i_layer]);
     }
     // chain rule
-    if (m_dense_layers.size() > 1) {
+    if (m_layers.size() > 1) {
         m_chained_grad = multiply_matrix(m_grads_tmp[1], m_grads_tmp[0]);
-        for (i_layer = 2; i_layer < m_dense_layers.size(); ++i_layer) {
+        for (i_layer = 2; i_layer < m_layers.size(); ++i_layer) {
             m_chained_grad = multiply_matrix(m_grads_tmp[i_layer], m_chained_grad);
         }
     } else {
         m_chained_grad = m_grads_tmp[0];
+    }
+}
+
+std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config) {
+    if (config.at(0) == "DenseLayer") {
+        return std::unique_ptr<DenseLayer>(new DenseLayer(config));
+    } else {
+        throw std::runtime_error("Failed to create a new layer of type \"" + config.at(0) + "\"");
+        return nullptr;
     }
 }
 }
