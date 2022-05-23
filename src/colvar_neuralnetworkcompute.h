@@ -58,7 +58,6 @@ private:
 // abstract interface of all layers
 class LayerBase {
 public:
-    LayerBase() {}
     LayerBase(const std::vector<std::string>& config) {}
     virtual ~LayerBase() {}
     /// get the input size
@@ -92,8 +91,7 @@ private:
     /// bias of each node
     std::vector<double> m_biases;
 public:
-    /// empty constructor
-    DenseLayer(): LayerBase() {}
+    /// constructor with a vector with 5 strings
     DenseLayer(const std::vector<std::string>& config);
     /// read weights and biases from file
     void readFromFile(const std::string& weights_file, const std::string& biases_file);
@@ -128,8 +126,49 @@ public:
     ~DenseLayer() {}
 };
 
-// class circularToLinearLayer {
-// };
+class CircularToLinearLayer: public LayerBase {
+private:
+    size_t m_order;
+    size_t m_input_size;
+    size_t m_output_size;
+    std::function<double(double)> m_activation_function;
+    std::function<double(double)> m_activation_function_derivative;
+#ifdef LEPTON
+    bool m_use_custom_activation;
+    CustomActivationFunction m_custom_activation_function;
+#else
+    static const bool m_use_custom_activation = false;
+#endif
+    std::vector<double> m_circular_weights;
+    std::vector<std::vector<double>> m_circular_biases;
+    std::vector<std::vector<double>> m_linear_weights;
+    std::vector<double> m_linear_biases;
+public:
+    /// constructor with a vector with 7 strings
+    CircularToLinearLayer(const std::vector<std::string>& config);
+    /// read weights and biases from file
+    void readFromFile(const std::string& circular_weights_file, const std::string& circular_biases_file,
+                      const std::string& linear_weights_file, const std::string& linear_biases_file);
+    /// get the input size
+    size_t getInputSize() const override {
+        return m_input_size;
+    }
+    /// get the output size
+    size_t getOutputSize() const override {
+        return m_output_size;
+    }
+    /// compute the value of this layer
+    void compute(const std::vector<double>& input, std::vector<double>& output) const override;
+    /// compute the gradient of i-th output wrt j-th input
+    double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const override;
+    /// output[i][j] is the gradient of i-th output wrt j-th input
+    void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const override;
+    /// get the type of the layer
+    std::string layerType() const override {
+        return "CircularToLinearLayer";
+    }
+    ~CircularToLinearLayer() {}
+};
 
 class neuralNetworkCompute {
 private:
@@ -161,6 +200,16 @@ public:
 
 /// factory function for creating a new layer
 std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config);
+
+template <typename>
+struct is_std_vector: std::false_type {};
+
+template <typename T, typename... Ts>
+struct is_std_vector<std::vector<T, Ts...>> : std::true_type {};
+
+/// helper functions to read space-separeted text files into a 1D or 2D vector
+void readSpaceSeparatedFileToVector(const std::string& filename, std::vector<double>& vec);
+void readSpaceSeparatedFileToVector(const std::string& filename, std::vector<std::vector<double>>& vec);
 
 }
 #endif
