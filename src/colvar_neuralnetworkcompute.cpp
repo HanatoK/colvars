@@ -137,52 +137,9 @@ DenseLayer::DenseLayer(const std::vector<std::string>& config): LayerBase(config
 
 void DenseLayer::readFromFile(const std::string& weights_file, const std::string& biases_file) {
     // parse weights file
-    m_weights.clear();
-    m_biases.clear();
-    std::string line;
-    std::ifstream ifs_weights(weights_file.c_str());
-    if (!ifs_weights) {
-        throw std::runtime_error("Cannot open file " + weights_file);
-    }
-    while (std::getline(ifs_weights, line)) {
-        if (ifs_weights.bad()) {
-            throw std::runtime_error("I/O error while reading " + weights_file);
-        }
-        std::vector<std::string> splitted_data;
-        colvarparse::split_string(line, std::string{" "}, splitted_data);
-        if (splitted_data.size() > 0) {
-            std::vector<double> weights_tmp(splitted_data.size());
-            for (size_t i = 0; i < splitted_data.size(); ++i) {
-                try {
-                    weights_tmp[i] = std::stod(splitted_data[i]);
-                } catch (...) {
-                    throw std::runtime_error("Cannot convert " + splitted_data[i] + " to a number while reading file " + weights_file);
-                }
-            }
-            m_weights.push_back(weights_tmp);
-        }
-    }
+    readSpaceSeparatedFileToVector(weights_file, m_weights);
     // parse biases file
-    std::ifstream ifs_biases(biases_file.c_str());
-    if (!ifs_biases) {
-        throw std::runtime_error("Cannot open file " + biases_file);
-    }
-    while (std::getline(ifs_biases, line)) {
-        if (ifs_biases.bad()) {
-            throw std::runtime_error("I/O error while reading " + biases_file);
-        }
-        std::vector<std::string> splitted_data;
-        colvarparse::split_string(line, std::string{" "}, splitted_data);
-        if (splitted_data.size() > 0) {
-            double bias = 0;
-            try {
-                bias = std::stod(splitted_data[0]);
-            } catch (...) {
-                throw std::runtime_error("Cannot convert " + splitted_data[0] + " to a number while reading file " + biases_file);
-            }
-            m_biases.push_back(bias);
-        }
-    }
+    readSpaceSeparatedFileToVector(biases_file, m_biases);
     m_input_size = m_weights[0].size();
     m_output_size = m_weights.size();
 }
@@ -231,6 +188,105 @@ double DenseLayer::computeGradientElement(const std::vector<double>& input, cons
 }
 
 void DenseLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
+    for (size_t j = 0; j < m_input_size; ++j) {
+        for (size_t i = 0; i < m_output_size; ++i) {
+            output_grad[i][j] = computeGradientElement(input, i, j);
+        }
+    }
+}
+
+CircularToLinearLayer::CircularToLinearLayer(const std::vector<std::string>& config): LayerBase(config) {
+    const std::string& circular_weights_file = config.at(1);
+    const std::string& circular_biases_file = config.at(2);
+    const std::string& linear_weights_file = config.at(3);
+    const std::string& linear_biases_file = config.at(4);
+    const std::string& activation_type = config.at(5);
+    const std::string& activation_str = config.at(6);
+    readFromFile(circular_weights_file, circular_biases_file,
+                 linear_weights_file, linear_biases_file);
+    if (activation_type == "custom") {
+#ifdef LEPTON
+        m_use_custom_activation = true;
+        m_custom_activation_function = CustomActivationFunction(activation_str);
+#else
+        throw std::runtime_error("Lepton is required for custom activation function \"" + activation_str + "\", but it is not compiled.");
+#endif
+    } else if (activation_type == "builtin") {
+#ifdef LEPTON
+        m_use_custom_activation = false;
+#endif
+        auto search_builtin_activation_map = activation_function_map.find(activation_str);
+        if (search_builtin_activation_map != activation_function_map.end()) {
+            m_activation_function = search_builtin_activation_map->second.first;
+            m_activation_function_derivative = search_builtin_activation_map->second.second;
+        } else {
+            throw std::runtime_error("Unkown activation function \"" + activation_str + "\".");
+        }
+    } else {
+        throw std::runtime_error("Unknown activation type " + activation_type);
+    }
+}
+
+void CircularToLinearLayer::readFromFile(const std::string& circular_weights_file, const std::string& circular_biases_file,
+                                         const std::string& linear_weights_file, const std::string& linear_biases_file) {
+    readSpaceSeparatedFileToVector(circular_weights_file, m_circular_weights);
+    readSpaceSeparatedFileToVector(circular_biases_file, m_circular_biases);
+    readSpaceSeparatedFileToVector(linear_weights_file, m_linear_weights);
+    readSpaceSeparatedFileToVector(linear_biases_file, m_linear_biases);
+    m_input_size = m_circular_weights.size();
+    m_order = m_circular_biases.size();
+    m_output_size = m_input_size;
+    // some sanity checks
+    if (m_circular_weights.size() == 0) throw std::runtime_error("Failed to read circular weights.");
+    if (m_linear_biases.size() != m_input_size) throw std::runtime_error("Inconsistent number of linear biases.");
+    if (m_circular_biases.size() == 0) throw std::runtime_error("Failed to read circular biases.");
+    if (m_circular_biases.size() != m_linear_weights.size())
+        throw std::runtime_error(
+            "Inconsistent order (" + std::to_string(m_circular_biases.size()) +
+            " circular biases) but (" + std::to_string(m_linear_weights.size()) +
+            " linear weights.");
+    if (m_circular_biases[0].size() != m_linear_weights[0].size()) throw std::runtime_error("Inconsistent number of input units.");
+}
+
+void CircularToLinearLayer::compute(const std::vector<double>& input, std::vector<double>& output) const {
+    for (size_t i = 0; i < m_input_size; ++i) {
+        output[i] = m_linear_biases[i];
+        for (size_t j = 0; j < m_order; ++j) {
+            output[i] += m_linear_weights[j][i] * std::cos((double)(j+1) * m_circular_weights[i] * input[i] - m_circular_biases[j][i]);
+        }
+#ifdef LEPTON
+        if (m_use_custom_activation) {
+            output[i] = m_custom_activation_function.evaluate(output[i]);
+        } else {
+#endif
+            output[i] = m_activation_function(output[i]);
+#ifdef LEPTON
+        }
+#endif
+    }
+}
+
+double CircularToLinearLayer::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
+    if (i != j) return 0.0;
+    double grad = 0.0;
+    double sum = m_linear_biases[i];
+    for (size_t k = 0; k < m_order; ++k) {
+        sum += m_linear_weights[k][i] * std::cos((double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i]);
+        grad += -1.0 * m_linear_weights[k][i] * (double)(k+1) * m_circular_weights[i] * std::sin((double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i]);
+    }
+#ifdef LEPTON
+    if (m_use_custom_activation) {
+        grad *= m_custom_activation_function.derivative(sum);
+    } else {
+#endif
+        grad *= m_activation_function_derivative(sum);
+#ifdef LEPTON
+    }
+#endif
+    return grad;
+}
+
+void CircularToLinearLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
     for (size_t j = 0; j < m_input_size; ++j) {
         for (size_t i = 0; i < m_output_size; ++i) {
             output_grad[i][j] = computeGradientElement(input, i, j);
@@ -313,9 +369,65 @@ void neuralNetworkCompute::compute() {
 std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config) {
     if (config.at(0) == "DenseLayer") {
         return std::unique_ptr<DenseLayer>(new DenseLayer(config));
-    } else {
+    } else if (config.at(0) == "CircularToLinearLayer") {
+        return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));
+    } {
         throw std::runtime_error("Failed to create a new layer of type \"" + config.at(0) + "\"");
         return nullptr;
+    }
+}
+
+void readSpaceSeparatedFileToVector(const std::string& filename, std::vector<std::vector<double>>& vec) {
+    // 2D case: for a text file has multiple columns. If the content of the file is:
+    // 1.0 2.0
+    // -2.0 3.0
+    // then vec will be {{1.0, 2.0}, {-2.0, 3.0}}
+    vec.clear();
+    std::string line;
+    std::ifstream ifs(filename.c_str());
+    if (!ifs) throw std::runtime_error("Cannot open file " + filename);
+    while (std::getline(ifs, line)) {
+        if (ifs.bad()) throw std::runtime_error("I/O error while reading " + filename);
+        std::vector<std::string> splitted_data;
+        colvarparse::split_string(line, std::string{" "}, splitted_data);
+        if (splitted_data.size() > 0) {
+            std::vector<double> tmp(splitted_data.size(), 0.0);
+            for (size_t i = 0; i < splitted_data.size(); ++i) {
+                try {
+                    tmp[i] = std::stod(splitted_data[i]);
+                } catch (...) {
+                    throw std::runtime_error("Cannot convert " + splitted_data[i] + " to a number while reading file " + filename);
+                }
+            }
+            vec.push_back(tmp);
+        }
+    }
+}
+
+void readSpaceSeparatedFileToVector(const std::string& filename, std::vector<double>& vec) {
+    // 1D case: for a text file has only a single column. For example:
+    // if the file has:
+    // 1.0
+    // 2.0
+    // 3.0
+    // this will read a vector as {1.0, 2.0, 3.0}
+    vec.clear();
+    std::string line;
+    std::ifstream ifs(filename.c_str());
+    if (!ifs) throw std::runtime_error("Cannot open file " + filename);
+    while (std::getline(ifs, line)) {
+        if (ifs.bad()) throw std::runtime_error("I/O error while reading " + filename);
+        std::vector<std::string> splitted_data;
+        colvarparse::split_string(line, std::string{" "}, splitted_data);
+        if (splitted_data.size() > 0) {
+            double tmp = 0;
+            try {
+                tmp = std::stod(splitted_data[0]);
+            } catch (...) {
+                throw std::runtime_error("Cannot convert " + splitted_data[0] + " to a number while reading file " + filename);
+            }
+            vec.push_back(tmp);
+        }
     }
 }
 }

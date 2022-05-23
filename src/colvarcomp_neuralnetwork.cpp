@@ -148,7 +148,7 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
                     }
                 }
             } else {
-                throw std::runtime_error("Error: error on adding a new dense layer.\n");
+                throw std::runtime_error("Error: error on adding a new layer.\n");
             }
         } catch (const std::exception& e) {
             cvm::log(e.what());
