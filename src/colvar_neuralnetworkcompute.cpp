@@ -19,6 +19,12 @@ std::map<std::string, std::pair<std::function<double(double)>, std::function<dou
                   [](double x){return x < 0. ? std::exp(x)    : 1.;}}}
 };
 
+std::map<std::string, std::function<std::unique_ptr<LayerBase>(const std::vector<std::string>& config)>> available_layer_map
+{
+    {"DenseLayer",              [](const std::vector<std::string>& config){return std::unique_ptr<DenseLayer>(new DenseLayer(config));}},
+    {"CircularToLinearLayer",   [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));}},
+};
+
 #ifdef LEPTON
 CustomActivationFunction::CustomActivationFunction():
 expression(), value_evaluator(nullptr), gradient_evaluator(nullptr),
@@ -367,11 +373,10 @@ void neuralNetworkCompute::compute() {
 }
 
 std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config) {
-    if (config.at(0) == "DenseLayer") {
-        return std::unique_ptr<DenseLayer>(new DenseLayer(config));
-    } else if (config.at(0) == "CircularToLinearLayer") {
-        return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));
-    } {
+    auto search = available_layer_map.find(config.at(0));
+    if (search != available_layer_map.end()) {
+        return search->second(config);
+    } else {
         throw std::runtime_error("Failed to create a new layer of type \"" + config.at(0) + "\"");
         return nullptr;
     }

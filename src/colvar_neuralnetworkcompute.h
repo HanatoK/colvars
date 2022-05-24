@@ -190,6 +190,8 @@ public:
     size_t getNumberOfLayers() const {return m_layers.size();}
 };
 
+extern std::map<std::string, std::function<std::unique_ptr<LayerBase>(const std::vector<std::string>& config)>> available_layer_map;
+
 /// factory function for creating a new layer
 std::unique_ptr<LayerBase> createLayer(const std::vector<std::string>& config);
 
