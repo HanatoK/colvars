@@ -156,7 +156,15 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             return;
         }
     }
-    nn->input().resize(cv.size());
+    size_t input_size = 0;
+    for (size_t i_cv = 0; i_cv < cv.size(); ++i_cv) {
+        input_size += cv[i_cv]->value().size();
+        cvm::log("CV " + cvm::to_str(i_cv) + " has " + cvm::to_str(cv[i_cv]->value().size()) + " component(s).");
+    }
+    cvm::log("Number of CVs: " + cvm::to_str(cv.size()));
+    cvm::log("Number of input variables of the neural network: " + cvm::to_str(input_size));
+    nn->input().resize(input_size);
+    x.type(colvarvalue::type_scalar);
 }
 
 colvar::neuralNetwork::~neuralNetwork() {
@@ -164,28 +172,34 @@ colvar::neuralNetwork::~neuralNetwork() {
 
 void colvar::neuralNetwork::calc_value() {
     x.reset();
+    size_t input_index = 0;
     for (size_t i_cv = 0; i_cv < cv.size(); ++i_cv) {
         cv[i_cv]->calc_value();
         const colvarvalue& current_cv_value = cv[i_cv]->value();
         // for current nn implementation we have to assume taht types are always scaler
         if (current_cv_value.type() == colvarvalue::type_scalar) {
-            nn->input()[i_cv] = cv[i_cv]->sup_coeff * (cvm::pow(current_cv_value.real_value, cv[i_cv]->sup_np));
+            nn->input()[input_index] = cv[i_cv]->sup_coeff * (cvm::pow(current_cv_value.real_value, cv[i_cv]->sup_np));
         } else {
-            cvm::error("Error: using of non-scaler component.\n");
-            return;
+            for (size_t j = 0; j < current_cv_value.size(); ++j) {
+                nn->input()[input_index+j] = cv[i_cv]->sup_coeff * (current_cv_value[j]);
+            }
         }
+        input_index += current_cv_value.size();
     }
     nn->compute();
     x = nn->getOutput(m_output_index);
 }
 
 void colvar::neuralNetwork::calc_gradients() {
+    size_t input_index = 0;
     for (size_t i_cv = 0; i_cv < cv.size(); ++i_cv) {
         cv[i_cv]->calc_gradients();
+        const colvarvalue& current_cv_value = cv[i_cv]->value();
         if (cv[i_cv]->is_enabled(f_cvc_explicit_gradient)) {
-            const cvm::real factor = nn->getGradient(m_output_index, i_cv);
             const cvm::real factor_polynomial = getPolynomialFactorOfCVGradient(i_cv);
-            for (size_t j_elem = 0; j_elem < cv[i_cv]->value().size(); ++j_elem) {
+            for (size_t j = 0; j < current_cv_value.size(); ++j) {
+                const cvm::real factor = nn->getGradient(m_output_index, input_index + j);
+                // TODO: what should I do for vector CVs with explicit gradients?
                 for (size_t k_ag = 0 ; k_ag < cv[i_cv]->atom_groups.size(); ++k_ag) {
                     for (size_t l_atom = 0; l_atom < (cv[i_cv]->atom_groups)[k_ag]->size(); ++l_atom) {
                         (*(cv[i_cv]->atom_groups)[k_ag])[l_atom].grad = factor_polynomial * factor * (*(cv[i_cv]->atom_groups)[k_ag])[l_atom].grad;
@@ -193,11 +207,14 @@ void colvar::neuralNetwork::calc_gradients() {
                 }
             }
         }
+        input_index += current_cv_value.size();
     }
 }
 
 void colvar::neuralNetwork::apply_force(colvarvalue const &force) {
+    size_t input_index = 0;
     for (size_t i_cv = 0; i_cv < cv.size(); ++i_cv) {
+        const colvarvalue& current_cv_value = cv[i_cv]->value();
         // If this CV us explicit gradients, then atomic gradients is already calculated
         // We can apply the force to atom groups directly
         if (cv[i_cv]->is_enabled(f_cvc_explicit_gradient)) {
@@ -207,10 +224,14 @@ void colvar::neuralNetwork::apply_force(colvarvalue const &force) {
         } else {
             // Compute factors for polynomial combinations
             const cvm::real factor_polynomial = getPolynomialFactorOfCVGradient(i_cv);
-            const cvm::real factor = nn->getGradient(m_output_index, i_cv);;
-            colvarvalue cv_force = force.real_value * factor * factor_polynomial;
+            colvarvalue cv_force(current_cv_value.type());
+            for (size_t j = 0; j < current_cv_value.size(); ++j) {
+                const cvm::real factor = nn->getGradient(m_output_index, input_index + j);
+                cv_force[j] = force.real_value * factor * factor_polynomial;
+            }
             cv[i_cv]->apply_force(cv_force);
         }
+        input_index += current_cv_value.size();
     }
 }
 
