@@ -162,7 +162,12 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
         cvm::log("CV " + cvm::to_str(i_cv) + " has " + cvm::to_str(cv[i_cv]->value().size()) + " component(s).");
     }
     cvm::log("Number of CVs: " + cvm::to_str(cv.size()));
-    cvm::log("Number of input variables of the neural network: " + cvm::to_str(input_size));
+    cvm::log("Number of input components: " + cvm::to_str(input_size));
+    cvm::log("Number of input units of the neural network: " + cvm::to_str(nn->getInputSize()));
+    if (input_size != nn->getInputSize()) {
+        cvm::error("The total number of input components does not match the required input units of the neural network.");
+        return;
+    }
     nn->input().resize(input_size);
     x.type(colvarvalue::type_scalar);
 }

@@ -180,6 +180,8 @@ public:
     // for faster computation
     const std::vector<double>& input() const {return m_input;}
     std::vector<double>& input() {return m_input;}
+    /// get input size of the first layer
+    size_t getInputSize() const;
     /// compute the values and the gradients of all output nodes
     void compute();
     double getOutput(const size_t i) const {return m_layers_output.back()[i];}
