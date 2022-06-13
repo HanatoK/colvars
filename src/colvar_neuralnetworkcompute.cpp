@@ -322,6 +322,11 @@ neuralNetworkCompute::neuralNetworkCompute(std::vector<std::unique_ptr<LayerBase
     }
 }
 
+size_t neuralNetworkCompute::getInputSize() const {
+    if (m_layers.empty()) return 0;
+    else return m_layers[0]->getInputSize();
+}
+
 bool neuralNetworkCompute::addLayer(std::unique_ptr<LayerBase> layer) {
     if (m_layers.empty()) {
         // add layer to this ann directly if m_layers is empty
