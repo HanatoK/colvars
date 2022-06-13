@@ -224,12 +224,18 @@ void colvar::neuralNetwork::apply_force(colvarvalue const &force) {
         } else {
             // Compute factors for polynomial combinations
             const cvm::real factor_polynomial = getPolynomialFactorOfCVGradient(i_cv);
-            colvarvalue cv_force(current_cv_value.type());
+            // Cannot initialize a colvarvalue with the type directly since the size cannot be initialize in that way
+            // colvarvalue cv_force(current_cv_value.type());
+            colvarvalue cv_force(current_cv_value);
+            cv_force.reset();
             for (size_t j = 0; j < current_cv_value.size(); ++j) {
                 const cvm::real factor = nn->getGradient(m_output_index, input_index + j);
                 cv_force[j] = force.real_value * factor * factor_polynomial;
             }
             cv[i_cv]->apply_force(cv_force);
+            if (cvm::debug()) {
+                cvm::log("Apply colvar force " + cvm::to_str(cv_force) + " to sub CV " + cvm::to_str(i_cv));
+            }
         }
         input_index += current_cv_value.size();
     }
