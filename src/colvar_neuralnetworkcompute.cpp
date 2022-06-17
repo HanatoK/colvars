@@ -23,6 +23,7 @@ std::map<std::string, std::function<std::unique_ptr<LayerBase>(const std::vector
 {
     {"DenseLayer",              [](const std::vector<std::string>& config){return std::unique_ptr<DenseLayer>(new DenseLayer(config));}},
     {"CircularToLinearLayer",   [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));}},
+    {"CircularToLinearLayerFixedW",   [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayerFixedW>(new CircularToLinearLayerFixedW(config));}},
 };
 
 #ifdef LEPTON
@@ -293,6 +294,99 @@ double CircularToLinearLayer::computeGradientElement(const std::vector<double>& 
 }
 
 void CircularToLinearLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
+    for (size_t j = 0; j < m_input_size; ++j) {
+        for (size_t i = 0; i < m_output_size; ++i) {
+            output_grad[i][j] = computeGradientElement(input, i, j);
+        }
+    }
+}
+
+CircularToLinearLayerFixedW::CircularToLinearLayerFixedW(const std::vector<std::string>& config): LayerBase(config) {
+//     const std::string& circular_weights_file = config.at(1);
+    const std::string& circular_biases_file = config.at(1);
+    const std::string& linear_weights_file = config.at(2);
+//     const std::string& linear_biases_file = config.at(4);
+    const std::string& activation_type = config.at(3);
+    const std::string& activation_str = config.at(4);
+    readFromFile(circular_biases_file, linear_weights_file);
+    if (activation_type == "custom") {
+#ifdef LEPTON
+        m_use_custom_activation = true;
+        m_custom_activation_function = CustomActivationFunction(activation_str);
+#else
+        throw std::runtime_error("Lepton is required for custom activation function \"" + activation_str + "\", but it is not compiled.");
+#endif
+    } else if (activation_type == "builtin") {
+#ifdef LEPTON
+        m_use_custom_activation = false;
+#endif
+        auto search_builtin_activation_map = activation_function_map.find(activation_str);
+        if (search_builtin_activation_map != activation_function_map.end()) {
+            m_activation_function = search_builtin_activation_map->second.first;
+            m_activation_function_derivative = search_builtin_activation_map->second.second;
+        } else {
+            throw std::runtime_error("Unkown activation function \"" + activation_str + "\".");
+        }
+    } else {
+        throw std::runtime_error("Unknown activation type " + activation_type);
+    }
+}
+
+void CircularToLinearLayerFixedW::readFromFile(const std::string& circular_biases_file, const std::string& linear_weights_file) {
+    readSpaceSeparatedFileToVector(circular_biases_file, m_circular_biases);
+    readSpaceSeparatedFileToVector(linear_weights_file, m_linear_weights);
+    // some sanity checks
+    if (m_circular_biases.size() == 0) throw std::runtime_error("Failed to read circular biases.");
+    if (m_circular_biases.size() != m_linear_weights.size())
+        throw std::runtime_error(
+            "Inconsistent order (" + std::to_string(m_circular_biases.size()) +
+            " circular biases) but (" + std::to_string(m_linear_weights.size()) +
+            " linear weights.");
+    if (m_circular_biases[0].size() != m_linear_weights[0].size()) throw std::runtime_error("Inconsistent number of input units.");
+    m_input_size = m_circular_biases[0].size();
+    m_order = m_circular_biases.size();
+    m_output_size = m_input_size;
+}
+
+void CircularToLinearLayerFixedW::compute(const std::vector<double>& input, std::vector<double>& output) const {
+    for (size_t i = 0; i < m_input_size; ++i) {
+        output[i] = 0;
+        for (size_t j = 0; j < m_order; ++j) {
+            output[i] += m_linear_weights[j][i] * std::cos(input[i] - m_circular_biases[j][i]);
+        }
+#ifdef LEPTON
+        if (m_use_custom_activation) {
+            output[i] = m_custom_activation_function.evaluate(output[i]);
+        } else {
+#endif
+            output[i] = m_activation_function(output[i]);
+#ifdef LEPTON
+        }
+#endif
+    }
+}
+
+double CircularToLinearLayerFixedW::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
+    if (i != j) return 0.0;
+    double grad = 0.0;
+    double sum = 0;
+    for (size_t k = 0; k < m_order; ++k) {
+        sum += m_linear_weights[k][i] * std::cos(input[i] - m_circular_biases[k][i]);
+        grad += -1.0 * m_linear_weights[k][i] * std::sin(input[i] - m_circular_biases[k][i]);
+    }
+#ifdef LEPTON
+    if (m_use_custom_activation) {
+        grad *= m_custom_activation_function.derivative(sum);
+    } else {
+#endif
+        grad *= m_activation_function_derivative(sum);
+#ifdef LEPTON
+    }
+#endif
+    return grad;
+}
+
+void CircularToLinearLayerFixedW::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
     for (size_t j = 0; j < m_input_size; ++j) {
         for (size_t i = 0; i < m_output_size; ++i) {
             output_grad[i][j] = computeGradientElement(input, i, j);

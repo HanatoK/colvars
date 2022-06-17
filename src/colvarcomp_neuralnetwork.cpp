@@ -21,16 +21,12 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
     while (true) {
         bool layer_read_ok = false;
         // lookup dense layer
-        const std::string key_dense_weights =
-            std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_WeightsFile"};
+        const std::string key_dense_weights = std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_WeightsFile"};
         if (!layer_read_ok && key_lookup(conf, key_dense_weights.c_str())) {
             // continue to lookup biases file and activation
-            const std::string key_dense_biases =
-                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_BiasesFile"};
-            const std::string key_dense_activation =
-                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
-            const std::string key_dense_customactivation =
-                std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            const std::string key_dense_biases = std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_BiasesFile"};
+            const std::string key_dense_activation = std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_dense_customactivation = std::string{"layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
             std::vector<std::string> config_strings(5);
             config_strings.at(0) = "DenseLayer";
             if (!get_keyval(conf, key_dense_weights.c_str(), config_strings.at(1), std::string(""))) {
@@ -64,20 +60,14 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             layer_read_ok = true;
         }
         // lookup special layer: circular_to_linear layer
-        const std::string key_c2l_c_weights =
-            std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularWeightsFile"};
+        const std::string key_c2l_c_weights = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularWeightsFile"};
         if (!layer_read_ok && key_lookup(conf, key_c2l_c_weights.c_str())) {
             // continue to lookup circular biases file, linear weights/biases files and activation
-            const std::string key_c2l_c_biases =
-                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
-            const std::string key_c2l_l_weights =
-                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearWeightsFile"};
-            const std::string key_c2l_l_biases =
-                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearBiasesFile"};
-            const std::string key_c2l_activation =
-                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
-            const std::string key_c2l_customactivation =
-                std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            const std::string key_c2l_c_biases = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
+            const std::string key_c2l_l_weights = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearWeightsFile"};
+            const std::string key_c2l_l_biases = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_LinearBiasesFile"};
+            const std::string key_c2l_activation = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_c2l_customactivation = std::string{"circularToLinear_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
             std::vector<std::string> config_strings(7);
             config_strings.at(0) = "CircularToLinearLayer";
             if (!get_keyval(conf, key_c2l_c_weights.c_str(), config_strings.at(1), std::string(""))) {
@@ -112,6 +102,43 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
                 }
             }
             if (config_strings.at(5).empty()) {
+                cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
+                return;
+            }
+            nn_config_map[layer_index] = config_strings;
+            layer_read_ok = true;
+        }
+        const std::string key_c2l_c_biases = std::string{"circularToLinearFixedW_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
+        if (!layer_read_ok && key_lookup(conf, key_c2l_c_biases.c_str())) {
+            const std::string key_c2l_l_weights = std::string{"circularToLinearFixedW_layer"} + cvm::to_str(layer_index) + std::string{"_LinearWeightsFile"};
+            const std::string key_c2l_activation = std::string{"circularToLinearFixedW_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_c2l_customactivation = std::string{"circularToLinearFixedW_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            std::vector<std::string> config_strings(5);
+            config_strings.at(0) = "CircularToLinearLayerFixedW";
+            if (!get_keyval(conf, key_c2l_c_biases.c_str(), config_strings.at(1), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_c_biases + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_l_weights.c_str(), config_strings.at(2), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_l_weights + "\".\n");
+                return;
+            }
+            if (key_lookup(conf, key_c2l_activation.c_str())) {
+                config_strings.at(3) = "builtin";
+                get_keyval(conf, key_c2l_activation.c_str(), config_strings.at(4), std::string(""));
+            }
+            if (key_lookup(conf, key_c2l_customactivation.c_str())) {
+                if (!config_strings.at(3).empty()) {
+                    cvm::error("The activation function has been already specified by " + key_c2l_activation +
+                               ", which is in conflict with " + key_c2l_customactivation + ". Please keep only"
+                               " one of the option.\n");
+                    return;
+                } else {
+                    config_strings.at(3) = "custom";
+                    get_keyval(conf, key_c2l_customactivation.c_str(), config_strings.at(4), std::string(""));
+                }
+            }
+            if (config_strings.at(3).empty()) {
                 cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
                 return;
             }

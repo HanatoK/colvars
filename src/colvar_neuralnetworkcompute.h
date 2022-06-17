@@ -162,6 +162,48 @@ public:
     ~CircularToLinearLayer() {}
 };
 
+// CircularToLinearLayer with fixed circular weights and no linear biases
+class CircularToLinearLayerFixedW: public LayerBase {
+private:
+    size_t m_order;
+    size_t m_input_size;
+    size_t m_output_size;
+    std::function<double(double)> m_activation_function;
+    std::function<double(double)> m_activation_function_derivative;
+#ifdef LEPTON
+    bool m_use_custom_activation;
+    CustomActivationFunction m_custom_activation_function;
+#else
+    static const bool m_use_custom_activation = false;
+#endif
+    std::vector<std::vector<double>> m_circular_biases;
+    std::vector<std::vector<double>> m_linear_weights;
+public:
+    CircularToLinearLayerFixedW(const std::vector<std::string>& config);
+    /// read weights and biases from file
+    void readFromFile(const std::string& circular_biases_file,
+                      const std::string& linear_weights_file);
+    /// get the input size
+    size_t getInputSize() const override {
+        return m_input_size;
+    }
+    /// get the output size
+    size_t getOutputSize() const override {
+        return m_output_size;
+    }
+    /// compute the value of this layer
+    void compute(const std::vector<double>& input, std::vector<double>& output) const override;
+    /// compute the gradient of i-th output wrt j-th input
+    double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const override;
+    /// output[i][j] is the gradient of i-th output wrt j-th input
+    void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const override;
+    /// get the type of the layer
+    std::string layerType() const override {
+        return "CircularToLinearLayerFixedW";
+    }
+    ~CircularToLinearLayerFixedW() {}
+};
+
 class neuralNetworkCompute {
 private:
     std::vector<std::unique_ptr<LayerBase>> m_layers;
