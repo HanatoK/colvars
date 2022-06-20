@@ -618,6 +618,7 @@ public:
   class euler_theta;
   class neuralNetwork;
   class customColvar;
+  class random_uniform;
 
   // non-scalar components
   class distance_vec;

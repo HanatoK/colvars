@@ -17,6 +17,7 @@ COLVARSLIB = \
 	$(DSTDIR)/colvarcomp_gpath.o \
 	$(DSTDIR)/colvarcomp_protein.o \
 	$(DSTDIR)/colvarcomp_rotations.o \
+	$(DSTDIR)/colvarcomp_random.o \
 	$(DSTDIR)/colvarcomp_volmaps.o \
 	$(DSTDIR)/colvarcomp_combination.o \
 	$(DSTDIR)/colvarcomp_neuralnetwork.o \

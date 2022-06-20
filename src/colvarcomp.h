@@ -30,6 +30,7 @@
 #include "colvar_geometricpath.h"
 #include <memory>
 #include <functional>
+#include <random>
 #endif
 
 #include <map>
@@ -1761,6 +1762,22 @@ public:
     virtual void apply_force(colvarvalue const &force);
 };
 
+/// generate uniform random numbers
+class colvar::random_uniform: public colvar::cvc {
+private:
+    std::random_device m_random_device;
+    std::mt19937 m_random_engine;
+    std::uniform_real_distribution<> m_distribution;
+    double m_min;
+    double m_max;
+public:
+    random_uniform(std::string const& conf);
+    virtual ~random_uniform();
+    virtual void calc_value();
+    virtual void calc_gradients();
+    virtual void apply_force(colvarvalue const& force);
+};
+
 #else // if the compiler doesn't support C++11
 
 class colvar::linearCombination
@@ -1831,6 +1848,11 @@ class colvar::neuralNetwork
 {
 public:
     neuralNetwork(std::string const &conf) : componentDisabled(conf) {}
+};
+
+class colvar::random_uniform: public colvar::componentDisabled {
+public:
+    random_uniform(std::string const& conf) : componentDisabled(conf) {}
 };
 
 #endif // C++11 checking
