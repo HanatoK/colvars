@@ -1770,6 +1770,8 @@ private:
     std::uniform_real_distribution<> m_distribution;
     double m_min;
     double m_max;
+    bool m_use_random_seed;
+    int m_seed;
 public:
     random_uniform(std::string const& conf);
     virtual ~random_uniform();

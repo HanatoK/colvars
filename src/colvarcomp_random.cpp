@@ -7,6 +7,15 @@ colvar::random_uniform::random_uniform(std::string const& conf)
     set_function_type("randomUniform");
     get_keyval(conf, "min", m_min);
     get_keyval(conf, "max", m_max);
+    get_keyval(conf, "randomSeed", m_use_random_seed, false);
+    get_keyval(conf, "seed", m_seed, 0);
+    if (m_use_random_seed) {
+        cvm::log("Use random seed. The value of \"seed\" will be ignored.");
+        m_random_engine.seed(m_random_device());
+    } else {
+        cvm::log("Use seed " + cvm::to_str(m_seed));
+        m_random_engine.seed(m_seed);
+    }
     m_distribution = std::uniform_real_distribution<>(m_min, m_max);
     x.type(colvarvalue::type_scalar);
 }
