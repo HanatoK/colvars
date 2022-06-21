@@ -42,6 +42,7 @@ COLVARS_SRCS = \
         colvarcomp_combination.cpp \
         colvarcomp_protein.cpp \
         colvarcomp_rotations.cpp \
+        colvarcomp_random.cpp \
         colvarcomp_volmaps.cpp \
         colvar.cpp \
         colvardeps.cpp \
