@@ -118,6 +118,66 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             nn_config_map[layer_index] = config_strings;
             layer_read_ok = true;
         }
+        // lookup special layer: circular_to_linear_skewed layer
+        const std::string key_c2l_cskewed_weights =
+            std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_CircularWeightsFile"};
+        if (!layer_read_ok && key_lookup(conf, key_c2l_c_weights.c_str())) {
+            const std::string key_c2l_cskewed_biases =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
+            const std::string key_c2l_cskewed_skewness =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_CircularSkewnessFile"};
+            const std::string key_c2l_lskewed_weights =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_LinearWeightsFile"};
+            const std::string key_c2l_lskewed_biases =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_LinearBiasesFile"};
+            const std::string key_c2l_skewed_activation =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_c2l_skewed_customactivation =
+                std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            std::vector<std::string> config_strings(8);
+            config_strings.at(0) = "CircularToLinearLayerSkewed";
+            if (!get_keyval(conf, key_c2l_c_weights.c_str(), config_strings.at(1), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_cskewed_weights + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_cskewed_biases.c_str(), config_strings.at(2), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_cskewed_biases + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_cskewed_skewness.c_str(), config_strings.at(3), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_cskewed_skewness + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_lskewed_weights.c_str(), config_strings.at(4), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_lskewed_weights + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_c2l_lskewed_biases.c_str(), config_strings.at(5), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_c2l_lskewed_biases + "\".\n");
+                return;
+            }
+            if (key_lookup(conf, key_c2l_skewed_activation.c_str())) {
+                config_strings.at(6) = "builtin";
+                get_keyval(conf, key_c2l_skewed_activation.c_str(), config_strings.at(7), std::string(""));
+            }
+            if (key_lookup(conf, key_c2l_skewed_customactivation.c_str())) {
+                if (!config_strings.at(6).empty()) {
+                    cvm::error("The activation function has been already specified by " + key_c2l_skewed_activation +
+                               ", which is in conflict with " + key_c2l_skewed_customactivation + ". Please keep only"
+                               " one of the option.\n");
+                    return;
+                } else {
+                    config_strings.at(6) = "custom";
+                    get_keyval(conf, key_c2l_skewed_customactivation.c_str(), config_strings.at(7), std::string(""));
+                }
+            }
+            if (config_strings.at(6).empty()) {
+                cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
+                return;
+            }
+            nn_config_map[layer_index] = config_strings;
+            layer_read_ok = true;
+        }
         if (layer_read_ok) {
             ++layer_index;
             continue;

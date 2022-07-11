@@ -290,8 +290,9 @@ double CircularToLinearLayer::computeGradientElement(const std::vector<double>& 
     double grad = 0.0;
     double sum = m_linear_biases[i];
     for (size_t k = 0; k < m_order; ++k) {
-        sum += m_linear_weights[k][i] * std::cos((double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i]);
-        grad += -1.0 * m_linear_weights[k][i] * (double)(k+1) * m_circular_weights[i] * std::sin((double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i]);
+        const double phi = (double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i];
+        sum += m_linear_weights[k][i] * std::cos(phi);
+        grad += -1.0 * m_linear_weights[k][i] * (double)(k+1) * m_circular_weights[i] * std::sin(phi);
     }
 #ifdef LEPTON
     if (m_use_custom_activation) {
@@ -306,6 +307,121 @@ double CircularToLinearLayer::computeGradientElement(const std::vector<double>& 
 }
 
 void CircularToLinearLayer::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
+    for (size_t j = 0; j < m_input_size; ++j) {
+        for (size_t i = 0; i < m_output_size; ++i) {
+            output_grad[i][j] = computeGradientElement(input, i, j);
+        }
+    }
+}
+
+CircularToLinearLayerSkewed::CircularToLinearLayerSkewed(const std::vector<std::string>& config): LayerBase(config) {
+    int i = 1;
+    const std::string& circular_weights_file = config.at(i++);
+    const std::string& circular_biases_file = config.at(i++);
+    const std::string& circular_skewness_file = config.at(i++);
+    const std::string& linear_weights_file = config.at(i++);
+    const std::string& linear_biases_file = config.at(i++);
+    const std::string& activation_type = config.at(i++);
+    const std::string& activation_str = config.at(i++);
+    readFromFile(circular_weights_file, circular_biases_file,
+                 circular_skewness_file, linear_weights_file,
+                 linear_biases_file);
+    if (activation_type == "custom") {
+#ifdef LEPTON
+        m_use_custom_activation = true;
+        m_custom_activation_function = CustomActivationFunction(activation_str);
+#else
+        throw std::runtime_error("Lepton is required for custom activation function \"" + activation_str + "\", but it is not compiled.");
+#endif
+    } else if (activation_type == "builtin") {
+#ifdef LEPTON
+        m_use_custom_activation = false;
+#endif
+        auto search_builtin_activation_map = activation_function_map.find(activation_str);
+        if (search_builtin_activation_map != activation_function_map.end()) {
+            m_activation_function = search_builtin_activation_map->second.first;
+            m_activation_function_derivative = search_builtin_activation_map->second.second;
+        } else {
+            throw std::runtime_error("Unkown activation function \"" + activation_str + "\".");
+        }
+    } else {
+        throw std::runtime_error("Unknown activation type " + activation_type);
+    }
+}
+
+void CircularToLinearLayerSkewed::readFromFile(
+    const std::string& circular_weights_file, const std::string& circular_biases_file,
+    const std::string& circular_skewness_file, const std::string& linear_weights_file,
+    const std::string& linear_biases_file) {
+    readSpaceSeparatedFileToVector(circular_weights_file, m_circular_weights);
+    readSpaceSeparatedFileToVector(circular_biases_file, m_circular_biases);
+    readSpaceSeparatedFileToVector(circular_skewness_file, m_circular_skewness);
+    readSpaceSeparatedFileToVector(linear_weights_file, m_linear_weights);
+    readSpaceSeparatedFileToVector(linear_biases_file, m_linear_biases);
+    m_input_size = m_circular_weights.size();
+    m_order = m_circular_biases.size();
+    m_output_size = m_input_size;
+    // some sanity checks
+    if (m_circular_weights.size() == 0) throw std::runtime_error("Failed to read circular weights.");
+    if (m_linear_biases.size() != m_input_size) throw std::runtime_error("Inconsistent number of linear biases.");
+    if (m_circular_biases.size() == 0) throw std::runtime_error("Failed to read circular biases.");
+    if (m_circular_biases.size() != m_linear_weights.size())
+        throw std::runtime_error(
+            "Inconsistent order (" + std::to_string(m_circular_biases.size()) +
+            " circular biases) but (" + std::to_string(m_linear_weights.size()) +
+            " linear weights.");
+    if (m_circular_biases.size() != m_circular_skewness.size())
+        throw std::runtime_error(
+            "Inconsistent order (" + std::to_string(m_circular_biases.size()) +
+            " circular biases) but (" + std::to_string(m_circular_skewness.size()) +
+            " circular skewness factor.");
+    if (m_circular_biases[0].size() != m_linear_weights[0].size()) throw std::runtime_error("Inconsistent number of input units.");
+    if (m_circular_biases[0].size() != m_circular_skewness[0].size()) throw std::runtime_error("Inconsistent number of input units.");
+}
+
+void CircularToLinearLayerSkewed::compute(const std::vector<double>& input, std::vector<double>& output) const {
+    for (size_t i = 0; i < m_input_size; ++i) {
+        output[i] = m_linear_biases[i];
+        for (size_t j = 0; j < m_order; ++j) {
+            const double phi = m_circular_weights[i] * input[i] - m_circular_biases[j][i];
+            output[i] += m_linear_weights[j][i] * std::cos(phi + m_circular_skewness[j][i] * std::cos(phi));
+        }
+#ifdef LEPTON
+        if (m_use_custom_activation) {
+            output[i] = m_custom_activation_function.evaluate(output[i]);
+        } else {
+#endif
+            output[i] = m_activation_function(output[i]);
+#ifdef LEPTON
+        }
+#endif
+    }
+}
+
+double CircularToLinearLayerSkewed::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
+    if (i != j) return 0.0;
+    double grad = 0.0;
+    double sum = m_linear_biases[i];
+    for (size_t k = 0; k < m_order; ++k) {
+        const double phi = m_circular_weights[i] * input[i] - m_circular_biases[k][i];
+        sum += m_linear_weights[k][i] * std::cos(phi + m_circular_skewness[k][i] * std::cos(phi));
+        const double dyk_dpsi_k = -1.0 * m_linear_weights[k][i] * std::sin(phi + m_circular_skewness[k][i] * std::cos(phi)) * (1.0 - m_circular_skewness[k][i] * std::sin(phi));
+        grad += dyk_dpsi_k * m_circular_weights[i];
+//         grad += -1.0 * m_linear_weights[k][i] * (double)(k+1) * m_circular_weights[i] * std::sin((double)(k+1) * m_circular_weights[i] * input[i] - m_circular_biases[k][i]);
+    }
+#ifdef LEPTON
+    if (m_use_custom_activation) {
+        grad *= m_custom_activation_function.derivative(sum);
+    } else {
+#endif
+        grad *= m_activation_function_derivative(sum);
+#ifdef LEPTON
+    }
+#endif
+    return grad;
+}
+
+void CircularToLinearLayerSkewed::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
     for (size_t j = 0; j < m_input_size; ++j) {
         for (size_t i = 0; i < m_output_size; ++i) {
             output_grad[i][j] = computeGradientElement(input, i, j);
