@@ -121,7 +121,7 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
         // lookup special layer: circular_to_linear_skewed layer
         const std::string key_c2l_cskewed_weights =
             std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_CircularWeightsFile"};
-        if (!layer_read_ok && key_lookup(conf, key_c2l_c_weights.c_str())) {
+        if (!layer_read_ok && key_lookup(conf, key_c2l_cskewed_weights.c_str())) {
             const std::string key_c2l_cskewed_biases =
                 std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_CircularBiasesFile"};
             const std::string key_c2l_cskewed_skewness =
@@ -136,7 +136,7 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
                 std::string{"circularToLinearSkewed_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
             std::vector<std::string> config_strings(8);
             config_strings.at(0) = "CircularToLinearLayerSkewed";
-            if (!get_keyval(conf, key_c2l_c_weights.c_str(), config_strings.at(1), std::string(""))) {
+            if (!get_keyval(conf, key_c2l_cskewed_weights.c_str(), config_strings.at(1), std::string(""))) {
                 cvm::error("Expect keyword \"" + key_c2l_cskewed_weights + "\".\n");
                 return;
             }

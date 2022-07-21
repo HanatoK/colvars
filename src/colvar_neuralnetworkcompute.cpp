@@ -36,6 +36,7 @@ std::map<std::string, std::function<std::unique_ptr<LayerBase>(const std::vector
 {
     {"DenseLayer",              [](const std::vector<std::string>& config){return std::unique_ptr<DenseLayer>(new DenseLayer(config));}},
     {"CircularToLinearLayer",   [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));}},
+    {"CircularToLinearLayerSkewed", [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayerSkewed>(new CircularToLinearLayerSkewed(config));}},
 };
 
 #ifdef LEPTON
