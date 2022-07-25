@@ -37,6 +37,7 @@ std::map<std::string, std::function<std::unique_ptr<LayerBase>(const std::vector
     {"DenseLayer",              [](const std::vector<std::string>& config){return std::unique_ptr<DenseLayer>(new DenseLayer(config));}},
     {"CircularToLinearLayer",   [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayer>(new CircularToLinearLayer(config));}},
     {"CircularToLinearLayerSkewed", [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayerSkewed>(new CircularToLinearLayerSkewed(config));}},
+    {"CircularToLinearLayerYi", [](const std::vector<std::string>& config){return std::unique_ptr<CircularToLinearLayerYi>(new CircularToLinearLayerYi(config));}},
 };
 
 #ifdef LEPTON
@@ -423,6 +424,51 @@ double CircularToLinearLayerSkewed::computeGradientElement(const std::vector<dou
 }
 
 void CircularToLinearLayerSkewed::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
+    for (size_t j = 0; j < m_input_size; ++j) {
+        for (size_t i = 0; i < m_output_size; ++i) {
+            output_grad[i][j] = computeGradientElement(input, i, j);
+        }
+    }
+}
+
+CircularToLinearLayerYi::CircularToLinearLayerYi(const std::vector<std::string>& config): LayerBase(config) {
+    int i = 1;
+    const std::string& theta_a_file = config.at(i++);
+    const std::string& theta_b_file = config.at(i++);
+    readFromFile(theta_a_file, theta_b_file);
+}
+
+void CircularToLinearLayerYi::readFromFile(const std::string& theta_a_file, const std::string& theta_b_file) {
+    readSpaceSeparatedFileToVector(theta_a_file, m_theta_a);
+    readSpaceSeparatedFileToVector(theta_b_file, m_theta_b);
+    m_input_size = m_theta_a.size();
+    m_output_size = m_input_size;
+    if (m_theta_a.size() != m_theta_b.size()) {
+        throw std::runtime_error("The numbers of theta_a and theta_b mismatch.");
+    }
+}
+
+void CircularToLinearLayerYi::compute(const std::vector<double>& input, std::vector<double>& output) const {
+    for (size_t i = 0; i < m_input_size; ++i) {
+        const auto diff_a = std::cos(input[i] - m_theta_a[i]);
+        const auto diff_b = std::cos(input[i] - m_theta_b[i]);
+        output[i] = (diff_a - diff_b) / (2.0 - diff_a - diff_b);
+    }
+}
+
+double CircularToLinearLayerYi::computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const {
+    if (i != j) return 0.0;
+    const auto diff_a = std::cos(input[i] - m_theta_a[i]);
+    const auto diff_b = std::cos(input[i] - m_theta_b[i]);
+    const auto tmp = 2.0 - diff_a - diff_b;
+    const auto diff_a_dxi = -std::sin(input[i] - m_theta_a[i]);
+    const auto diff_b_dxi = -std::sin(input[i] - m_theta_b[i]);
+    const auto dtmp_dxi = 0.0 - diff_a_dxi - diff_b_dxi;
+    const auto derivative = ((diff_a_dxi - diff_b_dxi) * tmp - dtmp_dxi * (diff_a - diff_b)) / (tmp * tmp);
+    return derivative;
+}
+
+void CircularToLinearLayerYi::computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const {
     for (size_t j = 0; j < m_input_size; ++j) {
         for (size_t i = 0; i < m_output_size; ++i) {
             output_grad[i][j] = computeGradientElement(input, i, j);

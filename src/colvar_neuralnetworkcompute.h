@@ -217,6 +217,38 @@ public:
     ~CircularToLinearLayerSkewed() {}
 };
 
+class CircularToLinearLayerYi: public LayerBase {
+private:
+    size_t m_input_size;
+    size_t m_output_size;
+    std::vector<double> m_theta_a;
+    std::vector<double> m_theta_b;
+public:
+    /// constructor with a vector with 7 strings
+    CircularToLinearLayerYi(const std::vector<std::string>& config);
+    /// read weights and biases from file
+    void readFromFile(const std::string& theta_a_file, const std::string& theta_b_file);
+    /// get the input size
+    size_t getInputSize() const override {
+        return m_input_size;
+    }
+    /// get the output size
+    size_t getOutputSize() const override {
+        return m_output_size;
+    }
+    /// compute the value of this layer
+    void compute(const std::vector<double>& input, std::vector<double>& output) const override;
+    /// compute the gradient of i-th output wrt j-th input
+    double computeGradientElement(const std::vector<double>& input, const size_t i, const size_t j) const override;
+    /// output[i][j] is the gradient of i-th output wrt j-th input
+    void computeGradient(const std::vector<double>& input, std::vector<std::vector<double>>& output_grad) const override;
+    /// get the type of the layer
+    std::string layerType() const override {
+        return "CircularToLinearLayerYi";
+    }
+    ~CircularToLinearLayerYi() {}
+};
+
 class neuralNetworkCompute {
 private:
     std::vector<std::unique_ptr<LayerBase>> m_layers;

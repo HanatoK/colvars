@@ -178,6 +178,26 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             nn_config_map[layer_index] = config_strings;
             layer_read_ok = true;
         }
+        // lookup special layer: circular_to_linear_yi layer
+        const std::string key_theta_a =
+            std::string{"circularToLinearYi_layer"} + cvm::to_str(layer_index) + std::string{"_theta_a"};
+        if (!layer_read_ok && key_lookup(conf, key_theta_a.c_str())) {
+            // continues to lookup theta b
+            const std::string key_theta_b =
+                std::string{"circularToLinearYi_layer"} + cvm::to_str(layer_index) + std::string{"_theta_b"};
+            std::vector<std::string> config_strings(3);
+            config_strings.at(0) = "CircularToLinearLayerYi";
+            if (!get_keyval(conf, key_theta_a.c_str(), config_strings.at(1), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_theta_a + "\".\n");
+                return;
+            }
+            if (!get_keyval(conf, key_theta_b.c_str(), config_strings.at(2), std::string(""))) {
+                cvm::error("Expect keyword \"" + key_theta_b + "\".\n");
+                return;
+            }
+            nn_config_map[layer_index] = config_strings;
+            layer_read_ok = true;
+        }
         if (layer_read_ok) {
             ++layer_index;
             continue;
