@@ -435,7 +435,30 @@ CircularToLinearLayerYi::CircularToLinearLayerYi(const std::vector<std::string>&
     int i = 1;
     const std::string& theta_a_file = config.at(i++);
     const std::string& theta_b_file = config.at(i++);
+    const std::string& activation_type = config.at(i++);
+    const std::string& activation_str = config.at(i++);
     readFromFile(theta_a_file, theta_b_file);
+    if (activation_type == "custom") {
+#ifdef LEPTON
+        m_use_custom_activation = true;
+        m_custom_activation_function = CustomActivationFunction(activation_str);
+#else
+        throw std::runtime_error("Lepton is required for custom activation function \"" + activation_str + "\", but it is not compiled.");
+#endif
+    } else if (activation_type == "builtin") {
+#ifdef LEPTON
+        m_use_custom_activation = false;
+#endif
+        auto search_builtin_activation_map = activation_function_map.find(activation_str);
+        if (search_builtin_activation_map != activation_function_map.end()) {
+            m_activation_function = search_builtin_activation_map->second.first;
+            m_activation_function_derivative = search_builtin_activation_map->second.second;
+        } else {
+            throw std::runtime_error("Unkown activation function \"" + activation_str + "\".");
+        }
+    } else {
+        throw std::runtime_error("Unknown activation type " + activation_type);
+    }
 }
 
 void CircularToLinearLayerYi::readFromFile(const std::string& theta_a_file, const std::string& theta_b_file) {
@@ -452,7 +475,7 @@ void CircularToLinearLayerYi::compute(const std::vector<double>& input, std::vec
     for (size_t i = 0; i < m_input_size; ++i) {
         const auto diff_a = std::cos(input[i] - m_theta_a[i]);
         const auto diff_b = std::cos(input[i] - m_theta_b[i]);
-        output[i] = (diff_a - diff_b) / (2.0 - diff_a - diff_b);
+        output[i] = m_activation_function((diff_a - diff_b) / (2.0 - diff_a - diff_b));
     }
 }
 
@@ -464,7 +487,10 @@ double CircularToLinearLayerYi::computeGradientElement(const std::vector<double>
     const auto diff_a_dxi = -std::sin(input[i] - m_theta_a[i]);
     const auto diff_b_dxi = -std::sin(input[i] - m_theta_b[i]);
     const auto dtmp_dxi = 0.0 - diff_a_dxi - diff_b_dxi;
-    const auto derivative = ((diff_a_dxi - diff_b_dxi) * tmp - dtmp_dxi * (diff_a - diff_b)) / (tmp * tmp);
+    const auto inner_derivative = ((diff_a_dxi - diff_b_dxi) * tmp - dtmp_dxi * (diff_a - diff_b)) / (tmp * tmp);
+    // activation function with respect to the origin
+    const auto tmp2 = m_activation_function_derivative((diff_a - diff_b) / tmp);
+    const auto derivative = tmp2 * inner_derivative;
     return derivative;
 }
 

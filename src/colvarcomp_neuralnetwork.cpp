@@ -185,7 +185,11 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             // continues to lookup theta b
             const std::string key_theta_b =
                 std::string{"circularToLinearYi_layer"} + cvm::to_str(layer_index) + std::string{"_theta_b"};
-            std::vector<std::string> config_strings(3);
+            const std::string key_activation =
+                std::string{"circularToLinearYi_layer"} + cvm::to_str(layer_index) + std::string{"_activation"};
+            const std::string key_customactivation =
+                std::string{"circularToLinearYi_layer"} + cvm::to_str(layer_index) + std::string{"_custom_activation"};
+            std::vector<std::string> config_strings(5);
             config_strings.at(0) = "CircularToLinearLayerYi";
             if (!get_keyval(conf, key_theta_a.c_str(), config_strings.at(1), std::string(""))) {
                 cvm::error("Expect keyword \"" + key_theta_a + "\".\n");
@@ -193,6 +197,25 @@ colvar::neuralNetwork::neuralNetwork(std::string const &conf): linearCombination
             }
             if (!get_keyval(conf, key_theta_b.c_str(), config_strings.at(2), std::string(""))) {
                 cvm::error("Expect keyword \"" + key_theta_b + "\".\n");
+                return;
+            }
+            if (key_lookup(conf, key_activation.c_str())) {
+                config_strings.at(3) = "builtin";
+                get_keyval(conf, key_activation.c_str(), config_strings.at(4), std::string(""));
+            }
+            if (key_lookup(conf, key_customactivation.c_str())) {
+                if (!config_strings.at(3).empty()) {
+                    cvm::error("The activation function has been already specified by " + key_activation +
+                               ", which is in conflict with " + key_customactivation + ". Please keep only"
+                               " one of the option.\n");
+                    return;
+                } else {
+                    config_strings.at(3) = "custom";
+                    get_keyval(conf, key_customactivation.c_str(), config_strings.at(4), std::string(""));
+                }
+            }
+            if (config_strings.at(3).empty()) {
+                cvm::error("Expect an activation function for layer " + cvm::to_str(layer_index) + "\n");
                 return;
             }
             nn_config_map[layer_index] = config_strings;

@@ -221,6 +221,14 @@ class CircularToLinearLayerYi: public LayerBase {
 private:
     size_t m_input_size;
     size_t m_output_size;
+    std::function<double(double)> m_activation_function;
+    std::function<double(double)> m_activation_function_derivative;
+#ifdef LEPTON
+    bool m_use_custom_activation;
+    CustomActivationFunction m_custom_activation_function;
+#else
+    static const bool m_use_custom_activation = false;
+#endif
     std::vector<double> m_theta_a;
     std::vector<double> m_theta_b;
 public:
