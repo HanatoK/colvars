@@ -22,7 +22,7 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
         }
     }
     if (groups.size() < 3) {
-        cvm::error("Error: No enough atom groups(at least 3)!", INPUT_ERROR);
+        cvm::error("Error: No enough atom groups(at least 3)!", COLVARS_INPUT_ERROR);
     }
     cvm::log("Warning: this CV is not PBC-aware, and cannot fit a plane that goes through the Z axis.");
     n = groups.size();
@@ -64,7 +64,7 @@ void colvar::fit_plane::calc_value() {
     }
     g = sum_xi_square * (n * sum_yi_square - sum_yi * sum_yi) - sum_xi_yi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_xi * (sum_xi_yi * sum_yi - sum_xi * sum_yi_square);
     if (g == 0) {
-        cvm::error("Error: The plane may go through the Z axis! Please consider applying a restraint to circumvent this.", FATAL_ERROR);
+        cvm::error("Error: The plane may go through the Z axis! Please consider applying a restraint to circumvent this.", COLVARS_ERROR);
     }
     k0 = (sum_xi_zi * (sum_yi * sum_yi - n * sum_yi_square) + sum_yi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_zi * (sum_xi * sum_yi_square - sum_yi * sum_xi_yi)) / g;
     k1 = (sum_xi_zi * (n * sum_xi_yi - sum_xi * sum_yi) + sum_yi_zi * (sum_xi * sum_xi - n * sum_xi_square) + sum_zi * (sum_xi_square * sum_yi - sum_xi * sum_xi_yi)) / g;
