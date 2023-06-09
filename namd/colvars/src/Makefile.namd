@@ -38,5 +38,6 @@ COLVARSLIB = \
 	$(DSTDIR)/colvarscript_commands_colvar.o \
 	$(DSTDIR)/colvartypes.o \
 	$(DSTDIR)/colvarvalue.o \
-	$(DSTDIR)/nr_jacobi.o
+	$(DSTDIR)/nr_jacobi.o \
+	$(DSTDIR)/colvarcomp_eigen_rmsd.o
         

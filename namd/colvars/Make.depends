@@ -22,7 +22,8 @@ obj/colvar.o: \
 	colvars/src/colvarbias.h \
 	colvars/src/colvarscript_commands.h \
 	colvars/src/colvarscript_commands_colvar.h \
-	colvars/src/colvarscript_commands_bias.h
+	colvars/src/colvarscript_commands_bias.h \
+	colvars/src/colvarcomp_eigen_rmsd.h
 	$(CXX) $(COLVARSCXXFLAGS) $(COPTO)obj/colvar.o $(COPTC) colvars/src/colvar.cpp
 obj/colvaratoms.o: \
 	obj/.exists \
@@ -733,3 +734,25 @@ obj/nr_jacobi.o: \
 	colvars/src/colvars_version.h \
 	colvars/src/nr_jacobi.h
 	$(CXX) $(COLVARSCXXFLAGS) $(COPTO)obj/nr_jacobi.o $(COPTC) colvars/src/nr_jacobi.cpp
+obj/colvarcomp_eigen_rmsd.o: \
+	obj/.exists \
+	colvars/src/colvarcomp_eigen_rmsd.cpp \
+	colvars/src/colvarcomp_eigen_rmsd.h \
+	colvars/src/colvarcomp.h \
+	colvars/src/colvarmodule.h \
+	colvars/src/colvars_version.h \
+	colvars/src/colvar.h \
+	colvars/src/colvarvalue.h \
+	colvars/src/colvartypes.h \
+	colvars/src/colvarparse.h \
+	colvars/src/colvarparams.h \
+	colvars/src/colvardeps.h \
+	colvars/src/colvaratoms.h \
+	colvars/src/colvarproxy.h \
+	colvars/src/colvarproxy_io.h \
+	colvars/src/colvarproxy_system.h \
+	colvars/src/colvarproxy_tcl.h \
+	colvars/src/colvarproxy_volmaps.h \
+	colvars/src/colvar_arithmeticpath.h \
+	colvars/src/colvar_geometricpath.h
+	$(CXX) $(COLVARSCXXFLAGS) $(COPTO)obj/colvarcomp_eigen_rmsd.o $(COPTC) colvars/src/colvarcomp_eigen_rmsd.cpp
