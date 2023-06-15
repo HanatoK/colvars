@@ -1218,6 +1218,9 @@ protected:
   /// Reference coordinates
   std::vector<cvm::atom_pos> ref_pos;
 
+  /// Shifted atomic positions
+  std::vector<cvm::atom_pos> shifted_pos;
+
   /// Rotation object
   cvm::rotation              rot;
 
