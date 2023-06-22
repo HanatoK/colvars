@@ -209,8 +209,8 @@ cvm::quaternion::position_derivative_inner(cvm::rvector const &pos,
 namespace {
   inline void *new_Jacobi_solver(int size) {
     return reinterpret_cast<void *>(new MathEigen::Jacobi<cvm::real,
-                                    cvm::vector1d<cvm::real> &,
-                                    cvm::matrix2d<cvm::real> &>(4));
+                                    cvm::real[4],
+                                    cvm::real[4][4]>(4));
   }
 }
 #endif
@@ -339,26 +339,28 @@ void colvarmodule::rotation::compute_overlap_matrix()
 #ifndef COLVARS_LAMMPS
 namespace NR {
 
-void diagonalize_matrix(cvm::matrix2d<cvm::real> &m,
-                        cvm::vector1d<cvm::real> &eigval,
-                        cvm::matrix2d<cvm::real> &eigvec)
+void diagonalize_matrix(cvm::real m[4][4],
+                        cvm::real eigval[4],
+                        cvm::real eigvec[4][4])
 {
-  eigval.resize(4);
-  eigval.reset();
-  eigvec.resize(4, 4);
-  eigvec.reset();
+  // eigval.resize(4);
+  // eigval.reset();
+  // eigvec.resize(4, 4);
+  // eigvec.reset();
+  std::memset(eigval, 0, sizeof(cvm::real)*4);
+  std::memset(eigvec, 0, sizeof(cvm::real)*4*4);
 
   // diagonalize
   int jac_nrot = 0;
-  if (NR_Jacobi::jacobi(m.c_array(), eigval.c_array(), eigvec.c_array(), &jac_nrot) !=
+  if (NR_Jacobi::jacobi(m, eigval, eigvec, &jac_nrot) !=
       COLVARS_OK) {
     cvm::error("Too many iterations in jacobi diagonalization.\n"
                "This is usually the result of an ill-defined set of atoms for "
                "rotational alignment (RMSD, rotateReference, etc).\n");
   }
-  NR_Jacobi::eigsrt(eigval.c_array(), eigvec.c_array());
+  NR_Jacobi::eigsrt(eigval, eigvec);
   // jacobi saves eigenvectors by columns
-  NR_Jacobi::transpose(eigvec.c_array());
+  NR_Jacobi::transpose(eigvec);
 
   // normalize eigenvectors
   for (size_t ie = 0; ie < 4; ie++) {
@@ -409,27 +411,28 @@ void colvarmodule::rotation::calc_optimal_rotation(
 // Seok C, Dill KA.  Using quaternions to calculate RMSD.  J Comput
 // Chem. 25(15):1849-57 (2004) DOI: 10.1002/jcc.20110 PubMed: 15376254
 void colvarmodule::rotation::calc_optimal_rotation_impl() {
-  S.resize(4, 4);
-  S.reset();
   compute_overlap_matrix();
 
-  S_backup.resize(4, 4);
-  S_backup = S;
+  // S_backup = S;
+  std::memcpy(S_backup, S, sizeof(cvm::real)*4*4);
 
   if (b_debug_gradients) {
-    cvm::log("S     = "+cvm::to_str(S_backup, cvm::cv_width, cvm::cv_prec)+"\n");
+    cvm::matrix2d<cvm::real> S_backup_to_print(4, 4);
+    for (size_t i = 0; i < 4; ++i) {
+      for (size_t j = 0; j < 4; ++j) {
+        S_backup_to_print[i][j] = S_backup[i][j];
+      }
+    }
+    cvm::log("S     = "+cvm::to_str(S_backup_to_print, cvm::cv_width, cvm::cv_prec)+"\n");
   }
-
-  S_eigval.resize(4);
-  S_eigvec.resize(4, 4);
 
 #ifdef COLVARS_LAMMPS
   MathEigen::Jacobi<cvm::real,
-                    cvm::vector1d<cvm::real> &,
-                    cvm::matrix2d<cvm::real> &> *ecalc =
+                    cvm::real[4],
+                    cvm::real[4][4]> *ecalc =
     reinterpret_cast<MathEigen::Jacobi<cvm::real,
-                                       cvm::vector1d<cvm::real> &,
-                                       cvm::matrix2d<cvm::real> &> *>(jacobi);
+                                       cvm::real[4],
+                                       cvm::real[4][4]> *>(jacobi);
 
   int ierror = ecalc->Diagonalize(S, S_eigval, S_eigvec);
   if (ierror) {

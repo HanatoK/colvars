@@ -11,6 +11,7 @@
 #define COLVARTYPES_H
 
 #include <vector>
+#include <cstring>
 
 #ifdef COLVARS_LAMMPS
 // Use open-source Jacobi implementation
@@ -1285,9 +1286,9 @@ public:
 
 #ifndef COLVARS_LAMMPS
 namespace NR {
-void diagonalize_matrix(cvm::matrix2d<cvm::real> &m,
-                        cvm::vector1d<cvm::real> &eigval,
-                        cvm::matrix2d<cvm::real> &eigvec);
+void diagonalize_matrix(cvm::real m[4][4],
+                        cvm::real eigval[4],
+                        cvm::real eigvec[4][4]);
 }
 #endif
 
@@ -1311,16 +1312,16 @@ private:
   cvm::rmatrix C;
 
   /// Overlap matrix S (4, 4)
-  cvm::matrix2d<cvm::real> S;
+  cvm::real S[4][4];
 
   /// Eigenvalues of S
-  cvm::vector1d<cvm::real> S_eigval;
+  cvm::real S_eigval[4];
 
   /// Eigenvectors of S
-  cvm::matrix2d<cvm::real> S_eigvec;
+  cvm::real S_eigvec[4][4];
 
   /// Used for debugging gradients
-  cvm::matrix2d<cvm::real> S_backup;
+  cvm::real S_backup[4][4];
 
 public:
   /// \brief Perform gradient tests
@@ -1368,7 +1369,7 @@ public:
      */
     void prepare_derivative(bool require_dl, bool require_dq) {
       if (require_dl) {
-        const cvm::real* Q0 = m_rot.S_eigvec[0].data;
+        const cvm::real* Q0 = m_rot.S_eigvec[0];
         tmp_Q0Q0[0][0] = Q0[0] * Q0[0];
         tmp_Q0Q0[0][1] = Q0[0] * Q0[1];
         tmp_Q0Q0[0][2] = Q0[0] * Q0[2];
@@ -1387,10 +1388,10 @@ public:
         tmp_Q0Q0[3][3] = Q0[3] * Q0[3];
       }
       if (require_dq) {
-        const cvm::real* Q0 = m_rot.S_eigvec[0].data;
-        const cvm::real* Q1 = m_rot.S_eigvec[1].data;
-        const cvm::real* Q2 = m_rot.S_eigvec[2].data;
-        const cvm::real* Q3 = m_rot.S_eigvec[3].data;
+        const cvm::real* Q0 = m_rot.S_eigvec[0];
+        const cvm::real* Q1 = m_rot.S_eigvec[1];
+        const cvm::real* Q2 = m_rot.S_eigvec[2];
+        const cvm::real* Q3 = m_rot.S_eigvec[3];
         cvm::real const L0 = m_rot.S_eigval[0];
         cvm::real const L1 = m_rot.S_eigval[1];
         cvm::real const L2 = m_rot.S_eigval[2];
@@ -1886,11 +1887,11 @@ public:
     cvm::matrix2d<cvm::rvector> ds_2;
 #ifdef COLVARS_LAMMPS
     MathEigen::Jacobi<cvm::real,
-                        cvm::vector1d<cvm::real> &,
-                        cvm::matrix2d<cvm::real> &> *ecalc =
+                      cvm::real[4],
+                      cvm::real[4][4]> *ecalc =
         reinterpret_cast<MathEigen::Jacobi<cvm::real,
-                                          cvm::vector1d<cvm::real> &,
-                                          cvm::matrix2d<cvm::real> &> *>(jacobi);
+                                           cvm::real[4],
+                                           cvm::real[4][4]> *>(jacobi);
 #endif
     for (size_t ia = 0; ia < pos2.size(); ++ia) {
       // cvm::real const &a1x = pos1[ia].x;
@@ -1900,10 +1901,11 @@ public:
       // make an infitesimal move along each cartesian coordinate of
       // this atom, and solve again the eigenvector problem
       for (size_t comp = 0; comp < 3; comp++) {
-        cvm::matrix2d<cvm::real> S_new(4, 4);
-        cvm::vector1d<cvm::real> S_new_eigval(4);
-        cvm::matrix2d<cvm::real> S_new_eigvec(4, 4);
-        S_new = S_backup;
+        cvm::real S_new[4][4];
+        cvm::real S_new_eigval[4];
+        cvm::real S_new_eigvec[4][4];
+        std::memcpy(S_new, S_backup, sizeof(cvm::real) * 4 * 4);
+        // S_new = S_backup;
         for (size_t i = 0; i < 4; i++) {
           for (size_t j = 0; j < 4; j++) {
             S_new[i][j] +=
