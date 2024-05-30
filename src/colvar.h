@@ -641,6 +641,11 @@ public:
   class cartesian;
   class orientation;
 
+  // Cremer-Pople parameters
+  class cpQ;
+  class cptheta;
+  class cpphi;
+
   // components that do not handle any atoms directly
   class map_total;
 
