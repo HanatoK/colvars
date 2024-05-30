@@ -17,6 +17,7 @@
 #include "colvarvalue.h"
 #include "colvarparse.h"
 #include "colvarcomp.h"
+#include "colvarcomp_pucker.h"
 #include "colvar.h"
 #include "colvarbias.h"
 #include "colvars_memstream.h"
@@ -928,6 +929,9 @@ void colvar::define_component_types()
   add_component_type<euler_phi>("euler phi angle of the optimal orientation", "eulerPhi");
   add_component_type<euler_psi>("euler psi angle of the optimal orientation", "eulerPsi");
   add_component_type<euler_theta>("euler theta angle of the optimal orientation", "eulerTheta");
+  add_component_type<cpQ>("Cremer-Pople parameter Q", "cpQ");
+  add_component_type<cptheta>("Cremer-Pople parameter theta", "cptheta");
+  add_component_type<cpphi>("Cremer-Pople parameter phi", "cpphi");
 
 #ifdef LEPTON
   add_component_type<customColvar>("CV with support of the Lepton custom function", "customColvar");

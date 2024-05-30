@@ -43,5 +43,6 @@ COLVARSLIB = \
 	$(DSTDIR)/colvars_memstream.o \
 	$(DSTDIR)/colvartypes.o \
 	$(DSTDIR)/colvarvalue.o \
-	$(DSTDIR)/nr_jacobi.o
+	$(DSTDIR)/nr_jacobi.o \
+	$(DSTDIR)/colvarcomp_pucker.o
         
