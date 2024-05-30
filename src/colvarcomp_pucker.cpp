@@ -121,7 +121,7 @@ cpABC calc_cpABC(const cvm::atom_group& r, cpABC_grad* grad = nullptr) {
                                    one_denom_sq * (dtriple_dz * denominator - dnorm_dz * triples[k])};
         grad->dA_dr[j] += sin_f2[k] * dzk_drj;
         grad->dB_dr[j] += cos_f2[k] * dzk_drj;
-        grad->dB_dr[j] += ((-2.0) * (k % 2) + 1.0) * dzk_drj;
+        grad->dC_dr[j] += ((-2.0) * (k % 2) + 1.0) * dzk_drj;
       }
     }
   }
