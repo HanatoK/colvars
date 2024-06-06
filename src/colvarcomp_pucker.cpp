@@ -181,17 +181,16 @@ void colvar::cptheta::calc_value() {
   A = result.A;
   B = result.B;
   C = result.C;
-  x.real_value = 180.0 / M_PI * std::acos(std::sqrt(C * C / (2.0 * A * A + 2.0 * B * B + C * C)));
+  x.real_value = 180.0 / M_PI * std::acos(C / std::sqrt(2.0 * A * A + 2.0 * B * B + C * C));
 }
 
 void colvar::cptheta::calc_gradients() {
-  const cvm::real tmp1 = 2.0 * (A * A + B * B);
-  const cvm::real tmp2 = tmp1 + C * C;
-  const cvm::real tmp3 = -180.0 / M_PI * std::sqrt(tmp2 / tmp1) * std::sqrt(tmp2 / (4.0 * C * C));
+  const cvm::real tmp1 = 2.0 * (A * A + B * B) + C * C;
+  const cvm::real factor = -180.0 / M_PI / std::sqrt(1.0 - (C * C / tmp1)) * (1.0 / tmp1);
+  const cvm::real tmp2 = std::sqrt(tmp1);
+  const cvm::real tmp3 = 1.0 / tmp2;
   for (size_t ia = 0; ia < atoms->size(); ia++) {
-    const cvm::rvector tmp4 = 2.0 * C * tmp2 * dC_dr[ia];
-    const cvm::rvector tmp5 = C * C * (4.0 * A * dA_dr[ia] + 4.0 * B * dB_dr[ia] + 2.0 * C * dC_dr[ia]);
-    (*atoms)[ia].grad = tmp3 * (tmp4 - tmp5) / (tmp2 * tmp2);
+    (*atoms)[ia].grad = factor * (dC_dr[ia] * tmp2 - C * tmp3 * (2.0 * A * dA_dr[ia] + 2.0 * B * dB_dr[ia] + C * dC_dr[ia]));
   }
 }
 
