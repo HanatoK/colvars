@@ -68,7 +68,7 @@ cpABC calc_cpABC(const cvm::atom_group& r, cpABC_grad* grad = nullptr) {
     grad->dA_dr.assign(r.size(), cvm::rvector{0, 0, 0});
     grad->dB_dr.assign(r.size(), cvm::rvector{0, 0, 0});
     grad->dC_dr.assign(r.size(), cvm::rvector{0, 0, 0});
-    const cvm::real tmp2 = 1.0 - 1.0 / r.size();
+    // const cvm::real tmp2 = 1.0 - 1.0 / r.size();
     const cvm::real tmp3 = -1.0 / r.size();
     const cvm::real one_denom = 1.0 / denominator;
     const cvm::real one_denom_sq = one_denom * one_denom;
@@ -81,40 +81,24 @@ cpABC calc_cpABC(const cvm::atom_group& r, cpABC_grad* grad = nullptr) {
       cvm::real dRp_drj_f = 0;
       cvm::real dRpp_drj_f = 0;
       for (size_t k = 0; k < r.size(); ++k) {
-        if (j == k) {
-          dRp_drj_f  += sin_f1[k] * tmp2;
-          dRpp_drj_f += cos_f1[k] * tmp2;
-        } else {
-          dRp_drj_f  += sin_f1[k] * tmp3;
-          dRpp_drj_f += cos_f1[k] * tmp3;
-        }
+        dRp_drj_f  += (double(j == k) + tmp3) * sin_f1[k];
+        dRpp_drj_f += (double(j == k) + tmp3) * cos_f1[k];
       }
-      // ∂R'/∂rj × R''
-      const cvm::rvector dRp_drjx_times_Rpp = cvm::rvector::outer({dRp_drj_f, 0, 0}, Rpp);
-      const cvm::rvector dRp_drjy_times_Rpp = cvm::rvector::outer({0, dRp_drj_f, 0}, Rpp);
-      const cvm::rvector dRp_drjz_times_Rpp = cvm::rvector::outer({0, 0, dRp_drj_f}, Rpp);
-      // R' × ∂R''/∂rj
-      const cvm::rvector Rp_times_dRpp_drjx = cvm::rvector::outer(Rp, {dRpp_drj_f, 0, 0});
-      const cvm::rvector Rp_times_dRpp_drjy = cvm::rvector::outer(Rp, {0, dRpp_drj_f, 0});
-      const cvm::rvector Rp_times_dRpp_drjz = cvm::rvector::outer(Rp, {0, 0, dRpp_drj_f});
+      // ∂R'/∂rj × R'' and R' × ∂R''/∂rj
+      const auto tmp1 = dRp_drj_f * Rpp;
+      const auto tmp2 = dRpp_drj_f * Rp;
+      const cvm::rvector tmp4_x{0, -tmp1.z+tmp2.z, tmp1.y-tmp2.y};
+      const cvm::rvector tmp4_y{tmp1.z-tmp2.z, 0, -tmp1.x+tmp2.x};
+      const cvm::rvector tmp4_z{-tmp1.y+tmp2.y, tmp1.x-tmp2.x, 0};
       // Derivative of the norm
-      const cvm::real dnorm_dx = one_denom * ((cross * dRp_drjx_times_Rpp) + (Rp_times_dRpp_drjx * cross));
-      const cvm::real dnorm_dy = one_denom * ((cross * dRp_drjy_times_Rpp) + (Rp_times_dRpp_drjy * cross));
-      const cvm::real dnorm_dz = one_denom * ((cross * dRp_drjz_times_Rpp) + (Rp_times_dRpp_drjz * cross));
+      const cvm::real dnorm_dx = one_denom * (cross * tmp4_x);
+      const cvm::real dnorm_dy = one_denom * (cross * tmp4_y);
+      const cvm::real dnorm_dz = one_denom * (cross * tmp4_z);
       // ABC derivatives with respect to r
       for (size_t k = 0; k < r.size(); ++k) {
-        cvm::real dtriple_dx = 0;
-        cvm::real dtriple_dy = 0;
-        cvm::real dtriple_dz = 0;
-        if (j == k) {
-          dtriple_dx = tmp2 * cross.x + R[k] * dRp_drjx_times_Rpp + R[k] * Rp_times_dRpp_drjx;
-          dtriple_dy = tmp2 * cross.y + R[k] * dRp_drjy_times_Rpp + R[k] * Rp_times_dRpp_drjy;
-          dtriple_dz = tmp2 * cross.z + R[k] * dRp_drjz_times_Rpp + R[k] * Rp_times_dRpp_drjz;
-        } else {
-          dtriple_dx = tmp3 * cross.x + R[k] * dRp_drjx_times_Rpp + R[k] * Rp_times_dRpp_drjx;
-          dtriple_dy = tmp3 * cross.y + R[k] * dRp_drjy_times_Rpp + R[k] * Rp_times_dRpp_drjy;
-          dtriple_dz = tmp3 * cross.z + R[k] * dRp_drjz_times_Rpp + R[k] * Rp_times_dRpp_drjz;
-        }
+        cvm::real dtriple_dx = (double(j == k) + tmp3) * cross.x + R[k] * tmp4_x;
+        cvm::real dtriple_dy = (double(j == k) + tmp3) * cross.y + R[k] * tmp4_y;
+        cvm::real dtriple_dz = (double(j == k) + tmp3) * cross.z + R[k] * tmp4_z;
         // Derivative of z_j wrt r_j
         const cvm::rvector dzk_drj{one_denom_sq * (dtriple_dx * denominator - dnorm_dx * triples[k]),
                                    one_denom_sq * (dtriple_dy * denominator - dnorm_dy * triples[k]),
