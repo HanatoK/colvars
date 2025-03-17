@@ -19,6 +19,14 @@
    along with plumed.  If not, see <http://www.gnu.org/licenses/>.
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
+#if defined(NAMD_VERSION)
+// "BOCgroup.h" is used for including all Charm++ related macros
+#include "BOCgroup.h"
+#include "CkLambda.h"
+// OPES_THREADING is only tested in NAMD
+#define OPES_THREADING
+#endif
+
 #include "colvarbias_opes.h"
 #include "colvarbias.h"
 #include "colvardeps.h"
@@ -35,6 +43,7 @@
 #include <unordered_set>
 #include <limits>
 #include <sstream>
+
 
 colvarbias_opes::colvarbias_opes(char const *key):
   colvarbias(key), m_kbt(0), m_barrier(0), m_biasfactor(0),
@@ -427,11 +436,10 @@ cvm::real colvarbias_opes::getProbAndDerivatives(
         }
         *(double *)result = tmp_prob;
       };
-      const size_t numChunks = m_kernels.size();
       const size_t lowerRange = 0;
-      const size_t upperRange = numChunks - 1;
+      const size_t upperRange = m_kernels.size() - 1;
       CkLoop_Parallelize(
-        numChunks, lowerRange, upperRange,
+        m_num_threads, lowerRange, upperRange,
         worker, &prob, CKLOOP_DOUBLE_SUM, NULL);
       for (size_t i = 0; i < num_variables(); ++i) {
         for (size_t j = 0; j < m_num_threads; ++j) {
@@ -482,11 +490,10 @@ cvm::real colvarbias_opes::getProbAndDerivatives(
         }
         *(double *)result = tmp_prob;
       };
-      const size_t numChunks = m_nlist_index.size();
       const size_t lowerRange = 0;
-      const size_t upperRange = numChunks - 1;
+      const size_t upperRange = m_nlist_index.size() - 1;
       CkLoop_Parallelize(
-        numChunks, lowerRange, upperRange,
+        m_num_threads, lowerRange, upperRange,
         worker, &prob, CKLOOP_DOUBLE_SUM, NULL);
       for (size_t i = 0; i < num_variables(); ++i) {
         for (size_t j = 0; j < m_num_threads; ++j) {
@@ -972,11 +979,10 @@ int colvarbias_opes::update_opes() {
             }
             *(double *)result = tmp_prob;
           };
-          const size_t numChunks = m_kernels.size();
           const size_t lowerRange = 0;
-          const size_t upperRange = numChunks - 1;
+          const size_t upperRange = m_kernels.size() - 1;
           CkLoop_Parallelize(
-            numChunks, lowerRange, upperRange,
+            m_num_threads, lowerRange, upperRange,
             worker, &sum_uprob, CKLOOP_DOUBLE_SUM, NULL);
 #else
           cvm::error("OPES cannot run because this binary is not linked with a supported threading library.\n");
@@ -1018,11 +1024,10 @@ int colvarbias_opes::update_opes() {
               }
               *(double *)result = tmp_prob;
             };
-            const size_t numChunks = m_kernels.size();
             const size_t lowerRange = 0;
-            const size_t upperRange = numChunks - 1;
+            const size_t upperRange = m_kernels.size() - 1;
             CkLoop_Parallelize(
-              numChunks, lowerRange, upperRange,
+              m_num_threads, lowerRange, upperRange,
               worker, &delta_sum_uprob, CKLOOP_DOUBLE_SUM, NULL);
 #else
             cvm::error("OPES cannot run because this binary is not linked with a supported threading library.\n");
@@ -1062,11 +1067,10 @@ int colvarbias_opes::update_opes() {
               }
               *(double *)result = tmp_prob;
             };
-            const size_t numChunks = m_nlist_index.size();
             const size_t lowerRange = 0;
-            const size_t upperRange = numChunks - 1;
+            const size_t upperRange = m_nlist_index.size() - 1;
             CkLoop_Parallelize(
-              numChunks, lowerRange, upperRange,
+              m_num_threads, lowerRange, upperRange,
               worker, &delta_sum_uprob, CKLOOP_DOUBLE_SUM, NULL);
 #else
             cvm::error("OPES cannot run because this binary is not linked with a supported threading library.\n");
@@ -1106,12 +1110,11 @@ int colvarbias_opes::update_opes() {
             }
             *(double *)result = tmp_prob;
           };
-          const size_t numChunks = m_delta_kernels.size();
           const size_t lowerRange = 0;
-          const size_t upperRange = numChunks - 1;
+          const size_t upperRange = m_delta_kernels.size() - 1;
           double tmp = 0;
           CkLoop_Parallelize(
-            numChunks, lowerRange, upperRange,
+            m_num_threads, lowerRange, upperRange,
             worker, &tmp, CKLOOP_DOUBLE_SUM, NULL);
           delta_sum_uprob -= tmp;
 #else
@@ -1587,7 +1590,7 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
         for (int k = start; k <= end; ++k) {
           if (k == giver_k) continue;
           double norm2 = 0;
-          for (size_t j = 0; j < num_variables(); ++j) {
+          for (size_t i = 0; i < num_variables(); ++i) {
             norm2 += variables(i)->dist2( giver_center[i], m_kernels[k].m_center[i]) / (m_kernels[k].m_sigma[i] * m_kernels[k].m_sigma[i]);
             if (norm2 >= min_norm2_smp[tid]) break;
           }
@@ -1597,11 +1600,10 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
           }
         }
       };
-      const size_t numChunks = m_kernels.size();
       const size_t lowerRange = 0;
-      const size_t upperRange = numChunks - 1;
+      const size_t upperRange = m_kernels.size() - 1;
       CkLoop_Parallelize(
-        numChunks, lowerRange, upperRange,
+        m_num_threads, lowerRange, upperRange,
         worker, NULL, CKLOOP_NONE, NULL);
       const auto it_min = std::min_element(min_norm2_smp.begin(), min_norm2_smp.end());
       min_norm2 = *it_min;
@@ -1666,7 +1668,7 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
           const size_t k = m_nlist_index[nk];
           if (k == giver_k) continue;
           double norm2 = 0;
-          for (size_t j = 0; j < num_variables(); ++j) {
+          for (size_t i = 0; i < num_variables(); ++i) {
             norm2 += variables(i)->dist2( giver_center[i], m_kernels[k].m_center[i]) / (m_kernels[k].m_sigma[i] * m_kernels[k].m_sigma[i]);
             if (norm2 >= min_norm2_smp[tid]) break;
           }
@@ -1676,11 +1678,10 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
           }
         }
       };
-      const size_t numChunks = m_nlist_index.size();
       const size_t lowerRange = 0;
-      const size_t upperRange = numChunks - 1;
+      const size_t upperRange = m_nlist_index.size() - 1;
       CkLoop_Parallelize(
-        numChunks, lowerRange, upperRange,
+        m_num_threads, lowerRange, upperRange,
         worker, NULL, CKLOOP_NONE, NULL);
       const auto it_min = std::min_element(min_norm2_smp.begin(), min_norm2_smp.end());
       min_norm2 = *it_min;
@@ -1959,14 +1960,13 @@ void colvarbias_opes::updateNlist(const std::vector<cvm::real>& center) {
         }
       }
     };
-    const size_t numChunks = m_kernels.size();
     const size_t lowerRange = 0;
-    const size_t upperRange = numChunks - 1;
+    const size_t upperRange = m_kernels.size() - 1;
     CkLoop_Parallelize(
-      numChunks, lowerRange, upperRange,
+      m_num_threads, lowerRange, upperRange,
       worker, NULL, CKLOOP_NONE, NULL);
-    for (size_t j = 0; j < m_num_threads; ++j) {
-      m_nlist_index.insert(m_nlist_index.end(), private_nlist_index[i].begin(), private_nlist_index.end());
+    for (size_t i = 0; i < m_num_threads; ++i) {
+      m_nlist_index.insert(m_nlist_index.end(), private_nlist_index[i].begin(), private_nlist_index[i].end());
     }
 #else
     cvm::error("OPES cannot run because this binary is not linked with a supported threading library.\n");
