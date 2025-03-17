@@ -424,7 +424,7 @@ cvm::real colvarbias_opes::getProbAndDerivatives(
           dist[i] = tmp_dist[i];
         }
       }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
       // TODO: Test this once fine-grained parallelization is enabled
       std::vector<std::vector<cvm::real>> derivs(m_num_threads, std::vector<cvm::real>(num_variables(), 0));
       std::vector<std::vector<cvm::real>> dists(m_num_threads, std::vector<cvm::real>(num_variables(), 0));
@@ -477,7 +477,7 @@ cvm::real colvarbias_opes::getProbAndDerivatives(
           dist[i] = tmp_dist[i];
         }
       }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
       // TODO: Test this once fine-grained parallelization is enabled
       std::vector<std::vector<cvm::real>> derivs(m_num_threads, std::vector<cvm::real>(num_variables(), 0));
       std::vector<std::vector<cvm::real>> dists(m_num_threads, std::vector<cvm::real>(num_variables(), 0));
@@ -968,7 +968,7 @@ int colvarbias_opes::update_opes() {
               }
             }
           }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
           // TODO: Does this work??
           auto worker = [&](int start, int end, void* result) {
             double tmp_prob = 0;
@@ -1013,7 +1013,7 @@ int colvarbias_opes::update_opes() {
                 }
               }
             }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
             auto worker = [&](int start, int end, void* result) {
               double tmp_prob = 0;
               for (int i = start; i <= end; ++i) {
@@ -1055,7 +1055,7 @@ int colvarbias_opes::update_opes() {
                 }
               }
             }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
             auto worker = [&](int start, int end, void* result) {
               double tmp_prob = 0;
               for (int i = start; i <= end; ++i) {
@@ -1099,7 +1099,7 @@ int colvarbias_opes::update_opes() {
               }
             }
           }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
           auto worker = [&](int start, int end, void* result) {
             double tmp_prob = 0;
             for (int d = start; d <= end; ++d) {
@@ -1580,7 +1580,7 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
           }
         }
       }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
       // NOTE: No existing reduction type for finding the minimum, so I have
       //       to use such a workaround.
       std::vector<size_t> min_k_smp(m_num_threads, min_k);
@@ -1657,7 +1657,7 @@ size_t colvarbias_opes::getMergeableKernel(const std::vector<cvm::real>& giver_c
           }
         }
       }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
       // NOTE: No existing reduction type for finding the minimum, so I have
       //       to use such a workaround.
       std::vector<size_t> min_k_smp(m_num_threads, min_k);
@@ -1946,7 +1946,7 @@ void colvarbias_opes::updateNlist(const std::vector<cvm::real>& center) {
       #pragma omp critical
       m_nlist_index.insert(m_nlist_index.end(), private_nlist_index.begin(), private_nlist_index.end());
     }
-#elif defined(CMK_SMP) && defined(USE_CKLOOP)
+#elif CMK_SMP && USE_CKLOOP
     std::vector<std::vector<size_t>> private_nlist_index(m_num_threads);
     auto worker = [&](int start, int end, void* unused){
       const int tid = cvm::proxy->smp_thread_id();
