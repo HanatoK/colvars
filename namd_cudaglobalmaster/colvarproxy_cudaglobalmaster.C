@@ -849,7 +849,7 @@ void colvarproxy_impl::calculate() {
         h_mExtForce, d_mExtForce,
         d_tbcatomic, numAtoms, mStream);
     }
-    cudaCheck(cudaStreamSynchronize(mStream));
+    // cudaCheck(cudaStreamSynchronize(mStream));
     // copy_DtoH(d_mVirial, h_mVirial, 1, mStream);
     // copy_DtoH(d_mExtForce, h_mExtForce, 1, mStream);
   }
@@ -1141,14 +1141,10 @@ bool CudaGlobalMasterColvars::hasVirial() const {
 
 cudaTensor CudaGlobalMasterColvars::getVirial() const {
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
-  cvm::log(
-    "virial = \n" + cvm::to_str(mImpl->h_mVirial->xx) + "\n");
   return *(mImpl->h_mVirial);
 }
 
 Vector CudaGlobalMasterColvars::getExtForce() const {
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
-  cvm::log(
-    "extForce = \n" + cvm::to_str(mImpl->h_mExtForce->x) + "\n");
   return *(mImpl->h_mExtForce);
 }
