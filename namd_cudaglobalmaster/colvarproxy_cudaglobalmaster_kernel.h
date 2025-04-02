@@ -2,6 +2,8 @@
 #define COLVARPROXY_CUDAGLOBALMASTER_KERNEL_H
 
 #include "colvartypes.h"
+#include "CudaUtils.h"
+#include "Vector.h"
 #include <cuda_runtime.h>
 
 /**
@@ -28,6 +30,20 @@ void transpose_from_host_rvector(
 void copy_float_to_host_double(
   const float* d_data_in,
   cvm::real* h_data_out,
+  const int num_atoms,
+  cudaStream_t stream);
+
+/**
+ * @brief: Compute the virial and total external force
+ */
+void compute_virial_extForce(
+  const double* d_positions,
+  const double* d_applied_forces,
+  cudaTensor* h_virial,
+  cudaTensor* d_virial,
+  Vector* h_extForce,
+  Vector* d_extForce,
+  unsigned int* d_tbcatomic,
   const int num_atoms,
   cudaStream_t stream);
 

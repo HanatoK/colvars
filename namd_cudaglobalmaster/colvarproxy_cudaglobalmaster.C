@@ -1,4 +1,5 @@
 #include "CudaGlobalMasterClient.h"
+#include "Vector.h"
 #include "colvarproxy_cudaglobalmaster.h"
 #include "colvarproxy_cudaglobalmaster_kernel.h"
 #include "colvarproxy.h"
@@ -198,8 +199,16 @@ private:
   CudaGlobalMasterColvars* mClient;
   ScriptTcl* mScriptTcl;
   int m_device_id;
+  bool doEnergy;
+  bool doVirial;
+  cudaTensor* h_mVirial;
+  Vector* h_mExtForce;
+  cudaTensor* d_mVirial;
+  Vector* d_mExtForce;
+  unsigned int* d_tbcatomic;
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxEventAttributes_t mEventAttrib;
+  nvtxEventAttributes_t mWaitDataFromGPUAttrib;
+  nvtxEventAttributes_t mColvarsCPUEventAttrib;
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
 };
 
@@ -216,15 +225,22 @@ colvarproxy_impl::colvarproxy_impl(
   h_mLattice(nullptr),
   mBiasEnergy(0), mAtomsChanged(false),
   first_timestep(true), previous_NAMD_step(0),
-  simParams(s), molecule(m), mScriptTcl(t) {
+  simParams(s), molecule(m), mScriptTcl(t), doEnergy(true), doVirial(true) {
   colvars = nullptr;
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  mEventAttrib.version = NVTX_VERSION;
-  mEventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
-  mEventAttrib.colorType = NVTX_COLOR_ARGB;
-  mEventAttrib.color = 0xFF880000;
-  mEventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
-  mEventAttrib.message.ascii = "Colvars CPU";
+  mWaitDataFromGPUAttrib.version = NVTX_VERSION;
+  mWaitDataFromGPUAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  mWaitDataFromGPUAttrib.colorType = NVTX_COLOR_ARGB;
+  mWaitDataFromGPUAttrib.color = 0xFF880000;
+  mWaitDataFromGPUAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  mWaitDataFromGPUAttrib.message.ascii = "Colvars Wait Data From GPU";
+
+  mColvarsCPUEventAttrib.version = NVTX_VERSION;
+  mColvarsCPUEventAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  mColvarsCPUEventAttrib.colorType = NVTX_COLOR_ARGB;
+  mColvarsCPUEventAttrib.color = 0xFF880000;
+  mColvarsCPUEventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  mColvarsCPUEventAttrib.message.ascii = "Colvars CPU";
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   boltzmann_ = 0.001987191;
   angstrom_value_ = 1.;
@@ -233,6 +249,13 @@ colvarproxy_impl::colvarproxy_impl(
 colvarproxy_impl::~colvarproxy_impl() {
   deallocateDeviceArrays();
   deallocateDeviceTransposeArrays();
+  deallocate_host(&h_mLattice);
+  deallocate_host(&h_mVirial);
+  deallocate_host(&h_mExtForce);
+  deallocate_device(&d_mLattice);
+  deallocate_device(&d_mVirial);
+  deallocate_device(&d_mExtForce);
+  deallocate_device(&d_tbcatomic);
 }
 
 int colvarproxy_impl::reset() {
@@ -275,6 +298,16 @@ void colvarproxy_impl::initialize_from_cudagm(
   cudaCheck(cudaSetDevice(m_device_id));
   allocate_device<double>(&d_mLattice, sizeof(double)*4*3);
   allocate_host<double>(&h_mLattice, sizeof(double)*4*3);
+  allocate_host(&h_mVirial, 1);
+  allocate_host(&h_mExtForce, 1);
+  allocate_device(&d_mVirial, 1);
+  allocate_device(&d_mExtForce, 1);
+  allocate_device(&d_tbcatomic, 1);
+  cudaCheck(cudaMemsetAsync(d_mVirial, 0, sizeof(cudaTensor), mStream));
+  cudaCheck(cudaMemsetAsync(d_mExtForce, 0, sizeof(Vector), mStream));
+  cudaCheck(cudaMemsetAsync(d_tbcatomic, 0, sizeof(unsigned int), mStream));
+  std::memset(h_mVirial, 0, sizeof(cudaTensor));
+  std::memset(h_mExtForce, 0, sizeof(Vector));
   cudaCheck(cudaSetDevice(savedDevice));
   if (arguments.size() < 3) {
     const std::string error = "Wrong number of arguments of CudaGlobalMasterColvars.";
@@ -682,39 +715,56 @@ void colvarproxy_impl::onBuffersUpdated() {
   const size_t numAtoms = atoms_ids.size();
   if (numAtoms > 0) {
     // Transform the arrays for Colvars
-    auto &colvars_pos = *(modify_atom_positions());
     transpose_to_host_rvector(d_mPositions, d_trans_mPositions, numAtoms, mStream);
-    copy_DtoH(d_trans_mPositions, colvars_pos.data(), numAtoms, mStream);
     if (mClient->requestUpdateAtomTotalForces()) {
-      auto &colvars_total_force = *(modify_atom_total_forces());
       transpose_to_host_rvector(d_mTotalForces, d_trans_mTotalForces, numAtoms, mStream);
-      copy_DtoH(d_trans_mTotalForces, colvars_total_force.data(), numAtoms, mStream);
     }
     if (mClient->requestUpdateMasses()) {
-      auto &colvars_mass = *(modify_atom_masses());
       copy_float_to_host_double(d_mMass, d_trans_mMass, numAtoms, mStream);
-      copy_DtoH(d_trans_mMass, colvars_mass.data(), numAtoms, mStream);
     }
     if (mClient->requestUpdateCharges()) {
-      auto &colvars_charge  = *(modify_atom_charges());
       copy_float_to_host_double(d_mCharges, d_trans_mCharges, numAtoms, mStream);
-      copy_DtoH(d_trans_mCharges, colvars_charge.data(), numAtoms, mStream);
-    }
-    if (mClient->requestUpdateLattice()) {
-      copy_DtoH(d_mLattice, h_mLattice, 3*4, mStream);
     }
   }
   // Check if CUDA kernels are successfully executed
   cudaCheck(cudaPeekAtLastError());
   // Synchronize the stream to make sure the host buffers are ready
   cudaCheck(cudaStreamSynchronize(mStream));
+  if (numAtoms > 0) {
+    auto &colvars_pos = *(modify_atom_positions());
+    copy_DtoH(d_trans_mPositions, colvars_pos.data(), numAtoms, mStream);
+    if (mClient->requestUpdateAtomTotalForces()) {
+      auto &colvars_total_force = *(modify_atom_total_forces());
+      copy_DtoH(d_trans_mTotalForces, colvars_total_force.data(), numAtoms, mStream);
+    }
+    if (mClient->requestUpdateMasses()) {
+      auto &colvars_mass = *(modify_atom_masses());
+      copy_DtoH(d_trans_mMass, colvars_mass.data(), numAtoms, mStream);
+    }
+    if (mClient->requestUpdateCharges()) {
+      auto &colvars_charge  = *(modify_atom_charges());
+      copy_DtoH(d_trans_mCharges, colvars_charge.data(), numAtoms, mStream);
+    }
+    if (mClient->requestUpdateLattice()) {
+      copy_DtoH(d_mLattice, h_mLattice, 3*4, mStream);
+    }
+  }
   // Restore the GPU device
   cudaCheck(cudaSetDevice(savedDevice));
 }
 
 void colvarproxy_impl::calculate() {
   const int64_t step = mClient->getStep();
-  // iout << "colvarproxy_impl::calculate at step " << step << "\n" << endi;
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePushEx(&mWaitDataFromGPUAttrib);
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  cudaCheck(cudaStreamSynchronize(mStream));
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePop();
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePushEx(&mColvarsCPUEventAttrib);
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   if (first_timestep) {
     // TODO: Do I really need to call them again?
     // setup();
@@ -767,9 +817,6 @@ void colvarproxy_impl::calculate() {
     }
   }
   // Run Colvars
-#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxRangePushEx(&mEventAttrib);
-#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   if (cvm::debug()) {
     print_input_atomic_data();
   }
@@ -789,10 +836,22 @@ void colvarproxy_impl::calculate() {
   cudaCheck(cudaSetDevice(m_device_id));
   auto &colvars_applied_force = *(modify_atom_applied_forces());
   if (numAtoms > 0) {
+    // Transform and copy the applied forces to NAMD
     copy_HtoD(colvars_applied_force.data(), d_trans_mAppliedForces, numAtoms, mStream);
     transpose_from_host_rvector(
       d_mAppliedForces, d_trans_mAppliedForces,
       numAtoms, mStream);
+    // Do virial calculation
+    if (doVirial) {
+      compute_virial_extForce(
+        d_mPositions, d_mAppliedForces,
+        h_mVirial, d_mVirial,
+        h_mExtForce, d_mExtForce,
+        d_tbcatomic, numAtoms, mStream);
+    }
+    cudaCheck(cudaStreamSynchronize(mStream));
+    // copy_DtoH(d_mVirial, h_mVirial, 1, mStream);
+    // copy_DtoH(d_mExtForce, h_mExtForce, 1, mStream);
   }
   // NOTE: I think I can skip the syncrhonization here because this client
   //       share the same stream as the CudaGlobalMasterServer object
@@ -801,7 +860,7 @@ void colvarproxy_impl::calculate() {
   // to write all output files at the end of a run
   if (step == simParams->N) {
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxRangePushEx(&mEventAttrib);
+  nvtxRangePushEx(&mColvarsCPUEventAttrib);
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
     post_run();
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
@@ -990,11 +1049,13 @@ bool CudaGlobalMasterColvars::requestUpdateCharges() {
   return mImpl->atomsChanged();
 }
 
-void CudaGlobalMasterColvars::setStep(int64_t step) {
-  CudaGlobalMasterClient::setStep(step);
+void CudaGlobalMasterColvars::setStep(int64_t step, bool doMigration, bool doEnergy, bool doVirial) {
+  CudaGlobalMasterClient::setStep(step, doMigration, doEnergy, doVirial);
   if (mImpl->atomsChanged()) {
     mImpl->reallocate();
   }
+  mImpl->doEnergy = doEnergy;
+  mImpl->doVirial = doVirial;
 }
 
 void CudaGlobalMasterColvars::calculate() {
@@ -1072,4 +1133,22 @@ int CudaGlobalMasterColvars::updateFromTCLCommand(const std::vector<std::string>
   }
   delete[] objv;
   return error_code;
+}
+
+bool CudaGlobalMasterColvars::hasVirial() const {
+  return mImpl->doVirial;
+}
+
+cudaTensor CudaGlobalMasterColvars::getVirial() const {
+  cudaCheck(cudaStreamSynchronize(mImpl->mStream));
+  cvm::log(
+    "virial = \n" + cvm::to_str(mImpl->h_mVirial->xx) + "\n");
+  return *(mImpl->h_mVirial);
+}
+
+Vector CudaGlobalMasterColvars::getExtForce() const {
+  cudaCheck(cudaStreamSynchronize(mImpl->mStream));
+  cvm::log(
+    "extForce = \n" + cvm::to_str(mImpl->h_mExtForce->x) + "\n");
+  return *(mImpl->h_mExtForce);
 }

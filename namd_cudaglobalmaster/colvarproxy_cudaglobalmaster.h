@@ -22,7 +22,12 @@ public:
   int updateFromTCLCommand(const std::vector<std::string>& arguments) override;
   void onBuffersUpdated() override;
   void calculate() override;
-  void setStep(int64_t step) override;
+  void setStep(int64_t step, bool doMigration, bool doEnergy, bool doVirial) override;
+  bool useDefaultExtForceAndVirial() const override { return false; }
+  bool hasVirial() const override;
+  bool hasExtForce() const override { return hasVirial(); };
+  cudaTensor getVirial() const override;
+  Vector getExtForce() const override;
   cudaStream_t getStream() override;
   bool requestedAtomsChanged() override;
   bool requestedForcedAtomsChanged() override { return requestedAtomsChanged(); }
