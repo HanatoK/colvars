@@ -1146,7 +1146,7 @@ bool CudaGlobalMasterColvars::hasVirial() const {
 
 cudaTensor CudaGlobalMasterColvars::getVirial() const {
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxRangePushEx(&(mImpl->mColvarsCPUEventAttrib));
+  nvtxRangePushEx(&(mImpl->mWaitForVirialAttrib));
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
@@ -1157,7 +1157,7 @@ cudaTensor CudaGlobalMasterColvars::getVirial() const {
 
 Vector CudaGlobalMasterColvars::getExtForce() const {
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxRangePushEx(&(mImpl->mColvarsCPUEventAttrib));
+  nvtxRangePushEx(&(mImpl->mWaitForVirialAttrib));
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
