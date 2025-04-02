@@ -209,6 +209,7 @@ private:
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   nvtxEventAttributes_t mWaitDataFromGPUAttrib;
   nvtxEventAttributes_t mColvarsCPUEventAttrib;
+  nvtxEventAttributes_t mWaitForVirialAttrib;
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
 };
 
@@ -241,6 +242,13 @@ colvarproxy_impl::colvarproxy_impl(
   mColvarsCPUEventAttrib.color = 0xFF880000;
   mColvarsCPUEventAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
   mColvarsCPUEventAttrib.message.ascii = "Colvars CPU";
+
+  mWaitForVirialAttrib.version = NVTX_VERSION;
+  mWaitForVirialAttrib.size = NVTX_EVENT_ATTRIB_STRUCT_SIZE;
+  mWaitForVirialAttrib.colorType = NVTX_COLOR_ARGB;
+  mWaitForVirialAttrib.color = 0xFF880000;
+  mWaitForVirialAttrib.messageType = NVTX_MESSAGE_TYPE_ASCII;
+  mWaitForVirialAttrib.message.ascii = "Colvars Wait For GPU Virial";
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   boltzmann_ = 0.001987191;
   angstrom_value_ = 1.;
@@ -730,6 +738,16 @@ void colvarproxy_impl::onBuffersUpdated() {
   cudaCheck(cudaPeekAtLastError());
   // Synchronize the stream to make sure the host buffers are ready
   cudaCheck(cudaStreamSynchronize(mStream));
+  // Restore the GPU device
+  cudaCheck(cudaSetDevice(savedDevice));
+}
+
+void colvarproxy_impl::calculate() {
+  const size_t numAtoms = atoms_ids.size();
+  const int64_t step = mClient->getStep();
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePushEx(&mWaitDataFromGPUAttrib);
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   if (numAtoms > 0) {
     auto &colvars_pos = *(modify_atom_positions());
     copy_DtoH(d_trans_mPositions, colvars_pos.data(), numAtoms, mStream);
@@ -749,15 +767,6 @@ void colvarproxy_impl::onBuffersUpdated() {
       copy_DtoH(d_mLattice, h_mLattice, 3*4, mStream);
     }
   }
-  // Restore the GPU device
-  cudaCheck(cudaSetDevice(savedDevice));
-}
-
-void colvarproxy_impl::calculate() {
-  const int64_t step = mClient->getStep();
-#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
-  nvtxRangePushEx(&mWaitDataFromGPUAttrib);
-#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   cudaCheck(cudaStreamSynchronize(mStream));
 #ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   nvtxRangePop();
@@ -830,7 +839,6 @@ void colvarproxy_impl::calculate() {
   nvtxRangePop();
 #endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   // Update applied forces
-  const size_t numAtoms = atoms_ids.size();
   int savedDevice;
   cudaCheck(cudaGetDevice(&savedDevice));
   cudaCheck(cudaSetDevice(m_device_id));
@@ -849,9 +857,6 @@ void colvarproxy_impl::calculate() {
         h_mExtForce, d_mExtForce,
         d_tbcatomic, numAtoms, mStream);
     }
-    // cudaCheck(cudaStreamSynchronize(mStream));
-    // copy_DtoH(d_mVirial, h_mVirial, 1, mStream);
-    // copy_DtoH(d_mExtForce, h_mExtForce, 1, mStream);
   }
   // NOTE: I think I can skip the syncrhonization here because this client
   //       share the same stream as the CudaGlobalMasterServer object
@@ -1140,11 +1145,23 @@ bool CudaGlobalMasterColvars::hasVirial() const {
 }
 
 cudaTensor CudaGlobalMasterColvars::getVirial() const {
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePushEx(&(mImpl->mColvarsCPUEventAttrib));
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePop();
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   return *(mImpl->h_mVirial);
 }
 
 Vector CudaGlobalMasterColvars::getExtForce() const {
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePushEx(&(mImpl->mColvarsCPUEventAttrib));
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   cudaCheck(cudaStreamSynchronize(mImpl->mStream));
+#ifdef CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
+  nvtxRangePop();
+#endif // CUDAGLOBALMASTERCOLVARS_CUDA_PROFILING
   return *(mImpl->h_mExtForce);
 }
