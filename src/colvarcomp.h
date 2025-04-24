@@ -266,7 +266,7 @@ protected:
 #ifdef COLVARS_USE_SOA
   /// Parse a group definition
   cvm::atom_group_soa *parse_group(std::string const &conf, char const *group_key,
-                               bool optional = false);
+                               bool optional = false, bool allow_sorting = true);
 #else
   /// Parse a group definition
   cvm::atom_group *parse_group(std::string const &conf, char const *group_key,

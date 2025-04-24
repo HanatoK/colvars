@@ -186,7 +186,11 @@ public:
     /**
      * @brief Synchronize the atoms from this temporary AoS object to \p m_ag
      */
-    void sync_to_soa() const;
+    void sync_to_soa();
+    /**
+     * @brief Allow the atom group to be sorted by the proxy index
+     */
+    bool allow_sorting;
   public:
     using atom_iter = decltype(m_atoms)::iterator;
     using const_atom_iter = decltype(m_atoms)::const_iterator;
@@ -195,7 +199,7 @@ public:
      *
      * @attention Will call \p cvm::atom_group_soa::atom_modifier::update_from_soa()
      */
-    atom_modifier(cvm::atom_group_soa* ag);
+    atom_modifier(cvm::atom_group_soa* ag, bool p_allow_sorting = true);
     /**
      * @brief Destructor
      *
@@ -240,8 +244,8 @@ public:
    *            at the same time which may corrupt the SoA layout. The associated
    *            \p cvm::atom_group_soa::atom_modifier will try locking \p mutex_lock.
    */
-  atom_modifier get_atom_modifier() {
-    return atom_modifier(this);
+  atom_modifier get_atom_modifier(bool allow_sorting = true) {
+    return atom_modifier(this, allow_sorting);
   }
   /**
    * @brief Remove all atoms from this SoA group and the proxy
@@ -254,7 +258,7 @@ public:
   /**
    * @brief Initialize the group by looking up its configuration
    */
-  int parse(std::string const &conf);
+  int parse(std::string const &conf, bool allow_sorting = true);
   /**
    * @brief Initialize the fitting group by looking up its configuration
    */

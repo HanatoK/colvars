@@ -166,7 +166,7 @@ int colvar::cvc::init_total_force_params(std::string const &conf)
 #ifdef COLVARS_USE_SOA
 cvm::atom_group_soa *colvar::cvc::parse_group(std::string const &conf,
                                           char const *group_key,
-                                          bool optional)
+                                          bool optional, bool allow_sorting)
 #else
 cvm::atom_group *colvar::cvc::parse_group(std::string const &conf,
                                           char const *group_key,
@@ -213,7 +213,7 @@ cvm::atom_group *colvar::cvc::parse_group(std::string const &conf,
     }
 
     cvm::increase_depth();
-    error_code |= group->parse(group_conf);
+    error_code |= group->parse(group_conf, allow_sorting);
     if (error_code != COLVARS_OK) {
       error_code |=
           cvm::error("Error: in definition of atom group \"" + std::string(group_key) + "\".",

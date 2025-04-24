@@ -1624,7 +1624,7 @@ int colvar::cartesian::init(std::string const &conf)
 {
   int error_code = cvc::init(conf);
 
-  atoms = parse_group(conf, "atoms");
+  atoms = parse_group(conf, "atoms", false, false);
 
   bool use_x, use_y, use_z;
   get_keyval(conf, "useX", use_x, true);

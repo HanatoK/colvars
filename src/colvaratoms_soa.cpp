@@ -117,7 +117,7 @@ cvm::atom_group_soa::~atom_group_soa() {
   }
 }
 
-cvm::atom_group_soa::atom_modifier::atom_modifier(cvm::atom_group_soa* ag): m_ag(ag)
+cvm::atom_group_soa::atom_modifier::atom_modifier(cvm::atom_group_soa* ag, bool p_allow_sorting): m_ag(ag), allow_sorting(p_allow_sorting)
 {
   if (m_ag->modify_lock.try_lock()) {
     update_from_soa();
@@ -255,7 +255,7 @@ void cvm::atom_group_soa::atom_modifier::update_from_soa() {
   m_total_charge = m_ag->total_charge;
 }
 
-void cvm::atom_group_soa::atom_modifier::sync_to_soa() const {
+void cvm::atom_group_soa::atom_modifier::sync_to_soa() {
   m_ag->num_atoms = m_atoms.size();
   m_ag->atoms_ids = m_atoms_ids;
   if (!m_ag->is_enabled(f_ag_scalable)) {
@@ -275,7 +275,15 @@ void cvm::atom_group_soa::atom_modifier::sync_to_soa() const {
     // for (size_t i = 0; i < m_ag->atoms_ids.size(); ++i) {
     //   m_atoms[i].proxy_index = p->init_atom(m_ag->atoms_ids[i]);
     // }
+    if (allow_sorting) {
+      std::sort(
+        m_atoms.begin(), m_atoms.end(),
+        [](const cvm::atom_group_soa::simple_atom& i,
+           const cvm::atom_group_soa::simple_atom& j)
+        {return i.proxy_index < j.proxy_index;});
+    }
     for (size_t i = 0; i < m_ag->num_atoms; ++i) {
+      if (allow_sorting) m_ag->atoms_ids[i] = m_atoms[i].id;
       m_ag->atoms_index[i] = m_atoms[i].proxy_index;
       m_ag->pos_x(i) = m_atoms[i].pos.x;
       m_ag->pos_y(i) = m_atoms[i].pos.y;
@@ -565,7 +573,7 @@ void cvm::atom_group_soa::clear_soa() {
   // Other fields should be untouched
 }
 
-int cvm::atom_group_soa::parse(std::string const &group_conf)
+int cvm::atom_group_soa::parse(std::string const &group_conf, bool allow_sorting)
 {
   cvm::log("Initializing atom group \""+key+"\".\n");
 
@@ -628,7 +636,7 @@ int cvm::atom_group_soa::parse(std::string const &group_conf)
         cvm::error("Error: cannot find atom group with name " + atoms_of + ".\n");
         return COLVARS_ERROR;
       }
-      auto modify_atoms = get_atom_modifier();
+      auto modify_atoms = get_atom_modifier(allow_sorting);
       error_code |= modify_atoms.add_atoms_of_group(ag);
     }
   }
@@ -643,7 +651,7 @@ int cvm::atom_group_soa::parse(std::string const &group_conf)
     std::string numbers_conf = "";
     size_t pos = 0;
     while (key_lookup(group_conf, "atomNumbers", &numbers_conf, &pos)) {
-      auto modify_atoms = get_atom_modifier();
+      auto modify_atoms = get_atom_modifier(allow_sorting);
       error_code |= modify_atoms.add_atom_numbers(numbers_conf);
       numbers_conf = "";
     }
@@ -653,7 +661,7 @@ int cvm::atom_group_soa::parse(std::string const &group_conf)
     std::string index_group_name;
     if (get_keyval(group_conf, "indexGroup", index_group_name)) {
       // use an index group from the index file read globally
-      auto modify_atoms = get_atom_modifier();
+      auto modify_atoms = get_atom_modifier(allow_sorting);
       error_code |= modify_atoms.add_index_group(index_group_name);
     }
   }
@@ -663,7 +671,7 @@ int cvm::atom_group_soa::parse(std::string const &group_conf)
     size_t pos = 0;
     while (key_lookup(group_conf, "atomNumbersRange",
                       &range_conf, &pos)) {
-      auto modify_atoms = get_atom_modifier();
+      auto modify_atoms = get_atom_modifier(allow_sorting);
       error_code |= modify_atoms.add_atom_numbers_range(range_conf);
       range_conf = "";
     }
@@ -691,7 +699,7 @@ int cvm::atom_group_soa::parse(std::string const &group_conf)
         cvm::error("Error: more instances of \"atomNameResidueRange\" than "
                    "values of \"psfSegID\".\n", COLVARS_INPUT_ERROR);
       } else {
-        auto modify_atoms = get_atom_modifier();
+        auto modify_atoms = get_atom_modifier(allow_sorting);
         error_code |= modify_atoms.add_atom_name_residue_range(psf_segids.size() ?
           *psii : std::string(""), range_conf);
         if (psf_segids.size()) psii++;
