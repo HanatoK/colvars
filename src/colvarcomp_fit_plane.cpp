@@ -1,11 +1,11 @@
 #include "colvarmodule.h"
 #include "colvarvalue.h"
-#include "colvarparse.h"
 #include "colvar.h"
 #include "colvarcomp.h"
 
-colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
-    function_type = "fit_plane";
+int colvar::fit_plane::init(std::string const &conf) {
+    int error_code = cvc::init(conf);
+    set_function_type("fit_plane");
     /// Check all available atom groups
     /// Assume groups exist first and looping
     bool has_groups = true;
@@ -22,7 +22,7 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
         }
     }
     if (groups.size() < 3) {
-        cvm::error("Error: No enough atom groups(at least 3)!", COLVARS_INPUT_ERROR);
+        return cvm::error("Error: No enough atom groups(at least 3)!", COLVARS_INPUT_ERROR);
     }
     cvm::log("Warning: this CV is not PBC-aware, and cannot fit a plane that goes through the Z axis.");
     n = groups.size();
@@ -31,10 +31,11 @@ colvar::fit_plane::fit_plane(std::string const &conf) : cvc(conf), groups(0) {
     dk0norm.assign(n, std::vector<double>(3, 0));
     dk1norm.assign(n, std::vector<double>(3, 0));
     dk2norm.assign(n, std::vector<double>(3, 0));
+    return error_code;
 }
 
-colvar::fit_plane::fit_plane() {
-    function_type = "fit_plane";
+colvar::fit_plane::fit_plane(): cvc() {
+    set_function_type("fit_plane");
     x.type(colvarvalue::type_3vector);
     disable(f_cvc_explicit_gradient);
 }
