@@ -32,6 +32,7 @@ $colvars_defines = " -DVMDCOLVARS";
                     'colvarcomp_combination.C',
                     'colvarcomp_coordnums.C',
                     'colvarcomp_distances.C',
+                    'colvarcomp_fit_plane.C',
                     'colvarcomp_gpath.C',
                     'colvarcomp_protein.C',
                     'colvarcomp_rotations.C',
