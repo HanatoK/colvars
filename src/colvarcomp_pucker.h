@@ -8,7 +8,11 @@ class colvar::cpQ : public colvar::cvc
 {
 protected:
   /// Atom group
-  cvm::atom_group  *atoms = nullptr;
+#ifdef COLVARS_USE_SOA
+  cvm::atom_group_soa  *atoms = nullptr;
+#else
+  cvm::atom_group *atoms = nullptr;
+#endif // COLVARS_USE_SOA
   cvm::real A;
   cvm::real B;
   cvm::real C;
@@ -26,7 +30,11 @@ class colvar::cptheta : public colvar::cvc
 {
 protected:
   /// Atom group
-  cvm::atom_group  *atoms = nullptr;
+#ifdef COLVARS_USE_SOA
+  cvm::atom_group_soa  *atoms = nullptr;
+#else
+  cvm::atom_group *atoms = nullptr;
+#endif // COLVARS_USE_SOA
   cvm::real A;
   cvm::real B;
   cvm::real C;
@@ -44,7 +52,11 @@ class colvar::cpphi : public colvar::cvc
 {
 protected:
   /// Atom group
-  cvm::atom_group  *atoms = nullptr;
+#ifdef COLVARS_USE_SOA
+  cvm::atom_group_soa  *atoms = nullptr;
+#else
+  cvm::atom_group *atoms = nullptr;
+#endif // COLVARS_USE_SOA
   cvm::real A;
   cvm::real B;
   cvm::real C;

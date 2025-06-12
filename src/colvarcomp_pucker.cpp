@@ -14,14 +14,28 @@ struct cpABC_grad {
   std::vector<cvm::rvector>& dC_dr;
 };
 
-cpABC calc_cpABC(const cvm::atom_group& r, cpABC_grad* grad = nullptr) {
+cpABC calc_cpABC(const cvm::atom_group_soa& r, cpABC_grad* grad = nullptr) {
   // Calculate the center of geometry
   cvm::rvector cog{0, 0, 0};
+#ifdef COLVARS_USE_SOA
+  for (size_t i = 0; i < r.size(); ++i) {
+    cog.x += r.pos_x(i);
+    cog.y += r.pos_y(i);
+    cog.z += r.pos_z(i);
+  }
+#else
   for (auto it = r.begin(); it != r.end(); ++it) cog += (it->pos);
+#endif // COLVARS_USE_SOA
   cog /= r.size();
   // Calculate R
   std::vector<cvm::rvector> R;
+#ifdef COLVARS_USE_SOA
+  for (size_t i = 0; i < r.size(); ++i) {
+    R.push_back(cvm::rvector{r.pos_x(i)-cog.x, r.pos_y(i)-cog.y, r.pos_z(i)-cog.z});
+  }
+#else
   for (auto it = r.begin(); it != r.end(); ++it) R.push_back(it->pos - cog);
+#endif // COLVARS_USE_SOA
   // Calculate R' and R''
   cvm::rvector Rp{0, 0, 0};
   cvm::rvector Rpp{0, 0, 0};
