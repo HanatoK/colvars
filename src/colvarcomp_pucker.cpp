@@ -14,7 +14,7 @@ struct cpABC_grad {
   std::vector<cvm::rvector>& dC_dr;
 };
 
-cpABC calc_cpABC(const cvm::atom_group_soa& r, cpABC_grad* grad = nullptr) {
+cpABC calc_cpABC(const cvm::atom_group& r, cpABC_grad* grad = nullptr) {
   // Calculate the center of geometry
   cvm::rvector cog{0, 0, 0};
 #ifdef COLVARS_USE_SOA
