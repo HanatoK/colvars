@@ -1600,11 +1600,7 @@ public:
   virtual void apply_force(colvarvalue const &force) override;
 protected:
   /// Multiple atom groups
-#ifdef COLVARS_USE_SOA
-  std::vector<cvm::atom_group_soa*> groups;
-#else
   std::vector<cvm::atom_group*> groups;
-#endif // COLVARS_USE_SOA
   /// Use absolute positions, ignoring PBCs when present
 //     bool b_no_PBC;
 private:
