@@ -230,25 +230,6 @@ public:
         }
       }
     }
-#if 0
-    if constexpr (cvm::debug()) {
-      for (unsigned int i = 0; i < numTiles; ++i) {
-        const unsigned int pos = tileListsStart[i];
-        const unsigned int len = tileListsLen[i];
-        const auto begin = tileLists.begin() + pos;
-        const auto end = begin + len;
-        std::string s = "Tilelist[" + cvm::to_str(int(i)) + "], start = " +
-                        cvm::to_str(int(pos)) + " size = " + cvm::to_str(int(len)) +
-                        ", data = [";
-        for (auto it = begin; it != end; ++it) {
-          const unsigned int tile = *it;
-          s += " " + cvm::to_str((int)tile);
-        }
-        s += "]\n";
-        cvmodule->log(s);
-      }
-    }
-#endif
     error_code |= p->deallocate_device_async(&d_tileLists, stream);
     error_code |= p->deallocate_device_async(&d_tileListsStart, stream);
     error_code |= p->deallocate_device_async(&d_tileListsLen, stream);
